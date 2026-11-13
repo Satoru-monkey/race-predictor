@@ -38,6 +38,12 @@ pip install -q -r requirements.txt
 - 展示タイムが出る前（競艇）や、オッズが出る前は、精度が下がることを一言添える
 - 「必ず当たる」「儲かる」とは言わない。答え合わせの回収率は100%を下回っている（`python ask.py report`）
 
+## 自動の学び直し
+
+毎週月曜 4:43（日本時間）に、スケジュール実行のClaudeが `python -m boatrace.update` と
+`python -m keiba.update --backfill 120` を実行し、`data/store/`・`models/`・`reports/` を main に push する。
+表にしたデータは `data/store/` に月ごとに保存してあり、更新では続きの日だけを取得する。
+
 ## 持ち主から頼まれたときだけやること
 
 - モデルの学び直し：競艇 `python -m boatrace.update`、競馬 `python -m keiba.update`
