@@ -150,6 +150,8 @@ def build(raw_dir: Path = RAW) -> pd.DataFrame:
         r, rc = parse_k_lines(read_lines(p), date_from_name(p.name))
         res += r
         races += rc
+    if not prog or not res:
+        return pd.DataFrame()
     prog, res, races = pd.DataFrame(prog), pd.DataFrame(res), pd.DataFrame(races)
     races = races.drop_duplicates(["date", "jcd", "rno"])
     df = prog.merge(res, on=["date", "jcd", "rno", "boat", "toban"], how="inner")

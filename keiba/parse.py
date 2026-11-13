@@ -171,6 +171,8 @@ def build(raw_dir: Path = RAW) -> pd.DataFrame:
         if r and rr:
             races.append(r)
             rows += rr
+    if not rows:
+        return pd.DataFrame()
     df = pd.DataFrame(rows).merge(pd.DataFrame(races), on="race_id")
     ok = df.groupby("race_id")["rank"].transform(lambda s: (s == 1).any())
     df = df[ok & df["date"].notna()].copy()

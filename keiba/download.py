@@ -27,12 +27,13 @@ def get(url: str) -> bytes:
     wait = INTERVAL - (time.time() - _last[0])
     if wait > 0:
         time.sleep(wait)
-    r = _session.get(url, headers=HEADERS, timeout=30)
-    _last[0] = time.time()
-    if r.status_code != 200:  # 一時的なエラーは30秒待って1回だけ取り直す
-        time.sleep(30)
+    for pause in (0, 10, 30, 60, 120):  # ときどき400が返るので、間をあけて取り直す
+        if pause:
+            time.sleep(pause)
         r = _session.get(url, headers=HEADERS, timeout=30)
         _last[0] = time.time()
+        if r.status_code == 200:
+            break
     r.raise_for_status()
     return r.content
 
@@ -74,13 +75,18 @@ def months(start: str, end: str):
     return out[::-1]
 
 
-def main(argv):
-    today = dt.date.today()
+def main(argv, skip: set[str] | None = None, deadline: float | None = None, newest_first: bool = True):
+    """skip：取得しない日付（すでに表にある日）。deadline：この時刻（time.time()）を過ぎたら止める。"""
+    today = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()  # 日本時間
     start = argv[0] if argv else "2025-01"
     end = argv[1] if len(argv) > 1 else f"{today:%Y-%m}"
     index = ROOT / "data" / "keiba" / "dates.txt"
     done = set(index.read_text().split()) if index.exists() else set()
-    for y, m in months(start, end):
+    done |= skip or set()
+    for y, m in (months(start, end) if newest_first else months(start, end)[::-1]):
+        if deadline and time.time() > deadline:
+            print("時間になったので取得を止めます（次回は続きから）", flush=True)
+            return
         try:
             dates = kaisai_dates(y, m)
         except Exception as e:
@@ -89,6 +95,9 @@ def main(argv):
         for d in sorted(dates, reverse=True):
             if d >= f"{today:%Y%m%d}" or d in done:
                 continue  # 今日以降はまだ結果がない
+            if deadline and time.time() > deadline:
+                print("時間になったので取得を止めます（次回は続きから）", flush=True)
+                return
             try:
                 ids = race_ids(d)
                 for rid in ids:
