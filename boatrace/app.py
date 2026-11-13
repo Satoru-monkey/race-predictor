@@ -162,6 +162,9 @@ def keiba_race(race_id):
         r = keiba_predict.predict_race(race_id, day)
     except ValueError as e:
         return f"<p>{e}</p><p><a href='/keiba'>戻る</a></p>", 404
+    except FileNotFoundError:
+        return ("<p>競馬のモデルがまだありません。「競馬データ更新.bat」を実行してください。</p>"
+                "<p><a href='/keiba'>戻る</a></p>"), 503
     return render_template("keiba_race.html", r=r)
 
 
