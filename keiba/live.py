@@ -27,7 +27,7 @@ def _get(url: str, ttl: float) -> str:
     if hit and time.time() - hit[0] < ttl:
         return hit[1]
     with _lock:
-        for pause in (0, 5, 15):  # ときどき400が返るので、少し待って取り直す
+        for pause in (0, 5, 15, 30, 60):  # ときどき400が返るので、少し待って取り直す
             time.sleep(max(pause, 2.0 - (time.time() - _last[0])))
             r = _session.get(url, headers=HEADERS, timeout=30)
             _last[0] = time.time()
