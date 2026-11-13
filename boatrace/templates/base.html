@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}競艇予想{% endblock %}</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2330;--sub:#667085;--line:#e4e7ec;--accent:#1f6feb;--good:#12805c;--warn:#b54708;
+--b1:#ffffff;--b2:#222222;--b3:#e5312f;--b4:#1e66d0;--b5:#f5c400;--b6:#1a9b4b}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1218;--card:#181c24;--ink:#e6e9ef;--sub:#98a2b3;--line:#2a303c;--accent:#58a6ff;--good:#3ccf91;--warn:#f79009}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.55}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header a{color:var(--ink);text-decoration:none;font-weight:600}
+header nav a{font-weight:400;color:var(--sub);margin-right:12px}
+main{max-width:960px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+h1{font-size:1.25rem;margin:.2em 0 .6em}
+h2{font-size:1.05rem;margin:.2em 0 .6em}
+.sub{color:var(--sub);font-size:.88rem}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--sub);font-weight:500;font-size:.82rem}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.boat{display:inline-flex;width:1.7em;height:1.7em;border-radius:6px;align-items:center;justify-content:center;font-weight:700;border:1px solid #9994}
+.c1{background:var(--b1);color:#000}.c2{background:var(--b2);color:#fff}.c3{background:var(--b3);color:#fff}
+.c4{background:var(--b4);color:#fff}.c5{background:var(--b5);color:#000}.c6{background:var(--b6);color:#fff}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;min-width:60px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.tag{display:inline-block;font-size:.78rem;padding:1px 8px;border-radius:999px;border:1px solid var(--line);margin:1px 2px 1px 0}
+.plus{color:var(--good)}.minus{color:var(--warn)}
+.conf-高{background:var(--good);color:#fff;border-color:transparent}
+.conf-中{background:var(--accent);color:#fff;border-color:transparent}
+.conf-低{background:var(--line)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+a.race{color:inherit;text-decoration:none;display:block}
+a.race:hover{border-color:var(--accent)}
+.note{background:color-mix(in srgb,var(--warn) 12%,transparent);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+form.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input,select,button{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{background:var(--accent);color:#fff;border-color:transparent;cursor:pointer}
+.boatrow{border-bottom:1px solid var(--line);padding:10px 0}
+.boatrow:last-of-type{border-bottom:none}
+.br-head{display:flex;align-items:center;gap:10px}
+.br-head .rank{color:var(--sub);width:1em}
+.br-name{flex:1;min-width:0}
+.br-prob{width:96px}
+.br-stats{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0 4px 2.4em}
+.br-stats b{font-weight:600}
+</style>
+</head>
+<body>
+<header><a href="/">競艇 順位予想</a>
+<nav><a href="/">今日のレース</a><a href="/report">答え合わせ</a><a href="/log">予想の記録</a></nav></header>
+<main>{% block body %}{% endblock %}</main>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ r.venue }}{{ r.rno }}R 予想{% endblock %}
+{% block body %}
+<div class="card">
+<h1>{{ r.venue }} {{ r.rno }}R <span class="sub">{{ r.title }}</span></h1>
+<div class="sub">{{ r.date }}・締切 {{ r.deadline or '-' }}・
+{% if r.model == 'ex' %}展示タイムを使ったモデル{% else %}番組表だけのモデル（展示タイムはまだ出ていません）{% endif %}
+{% if r.before and r.before.weather %}・{{ r.before.weather.weather or '' }} 風{{ r.before.weather.wind|int if r.before.weather.wind is not none else '-' }}m 波{{ r.before.weather.wave|int if r.before.weather.wave is not none else '-' }}cm{% endif %}</div>
+<p style="margin:.6em 0 0">確信度 <span class="tag conf-{{ r.confidence_label }}">{{ r.confidence_label }}</span>
+予想1位の1着確率 <strong>{{ '%.0f'|format(r.confidence*100) }}%</strong>
+<a href="?refresh=1" style="margin-left:10px">最新の情報で予想し直す</a></p>
+{% for e in r.errors %}<p class="sub minus">{{ e }}</p>{% endfor %}
+</div>
+
+<div class="card">
+<h2>予想順位</h2>
+{% for b in r.boats %}
+<div class="boatrow">
+<div class="br-head">
+<span class="rank">{{ loop.index }}</span>
+<span class="boat c{{ b.boat }}">{{ b.boat }}</span>
+<div class="br-name"><strong>{{ b.name }}</strong><div class="sub">{{ b['class'] }}・全国勝率 {{ b.nat_win }}・モーター {{ b.motor_2 }}%</div></div>
+<div class="br-prob"><div class="num"><strong>{{ '%.1f'|format(b.win*100) }}%</strong></div><div class="bar"><i style="width:{{ (b.win*100)|round(1) }}%"></i></div></div>
+</div>
+<div class="br-stats sub">
+<span>2着内 {{ '%.0f'|format(b.top2*100) }}%</span>
+<span>3着内 {{ '%.0f'|format(b.top3*100) }}%</span>
+<span>単勝 {{ b.odds if b.odds else '-' }}</span>
+<span>期待値 {% if b.ev %}<b class="{{ 'plus' if b.ev >= 1 else '' }}">{{ '%.2f'|format(b.ev) }}</b>{% else %}-{% endif %}</span>
+<span>展示 {{ b.ex_time or '-' }}</span>
+<span>ST展示 {{ b.st_ex or '-' }}{% if b.course_ex and b.course_ex != b.boat %}（{{ b.course_ex }}コース進入）{% endif %}</span>
+</div>
+<div>{% for t in b.plus %}<span class="tag plus">＋{{ t }}</span>{% endfor %}{% for t in b.minus %}<span class="tag minus">－{{ t }}</span>{% endfor %}</div>
+</div>
+{% endfor %}
+<p class="sub">1着の数字は、その艇が1着になる確率。期待値＝1着確率×単勝オッズで、1.0を超えると「確率のわりにオッズが高い」ことを表します。＋／－は、その艇の予想を押し上げた・押し下げた要素です。</p>
+</div>
+
+<div class="card scroll">
+<h2>3連単 予想上位10点</h2>
+<table><tr><th>買い目</th><th class="num">確率</th><th class="num">オッズ</th><th class="num">期待値</th></tr>
+{% for c in r.top_combos %}
+<tr><td>{% for x in c.combo.split('-') %}<span class="boat c{{ x }}">{{ x }}</span> {% endfor %}</td>
+<td class="num">{{ '%.1f'|format(c.p*100) }}%</td><td class="num">{{ c.odds or '-' }}</td>
+<td class="num">{% if c.ev %}<span class="{{ 'plus' if c.ev >= 1 else '' }}">{{ '%.2f'|format(c.ev) }}</span>{% else %}-{% endif %}</td></tr>
+{% endfor %}</table>
+</div>
+
+<div class="card scroll {% if r.value_bets %}{% endif %}">
+<h2>割に合う買い目（参考）</h2>
+{% if r.value_bets %}
+<table><tr><th>買い目</th><th class="num">確率</th><th class="num">オッズ</th><th class="num">期待値</th></tr>
+{% for c in r.value_bets %}
+<tr><td>{% for x in c.combo.split('-') %}<span class="boat c{{ x }}">{{ x }}</span> {% endfor %}</td>
+<td class="num">{{ '%.1f'|format(c.p*100) }}%</td><td class="num">{{ c.odds }}</td><td class="num plus">{{ '%.2f'|format(c.ev) }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="sub">確率2%以上で期待値1.2以上の買い目はありません（またはオッズが未発表です）。</p>{% endif %}
+<p class="sub">この期待値は、まだ過去のオッズで答え合わせができていません。人気薄ほどモデルの確率が外れやすいので、実際に買う判断には使わず、「予想の記録」で当たり具合を確かめてからにしてください。</p>
+</div>
+{% endblock %}
