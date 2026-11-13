@@ -8,6 +8,9 @@ from pathlib import Path
 
 from flask import Flask, abort, render_template, request
 
+from keiba import live as keiba_live
+from keiba import predict as keiba_predict
+
 from . import live, predict
 from .download import RAW, fetch
 from .parse import VENUES, parse_k_lines, read_lines
@@ -123,7 +126,51 @@ def log():
 
 @app.route("/report")
 def report():
-    return render_template("report.html", m=predict.meta())
+    try:
+        km = keiba_predict.meta()
+    except FileNotFoundError:
+        km = None
+    return render_template("report.html", m=predict.meta(), km=km)
+
+
+# ------------------------------------------------------------ 競馬
+@app.route("/keiba")
+def keiba_index():
+    day = dt.date.fromisoformat(request.args.get("date") or _next_weekend().isoformat())
+    error, races = None, []
+    try:
+        races = keiba_predict.day_races(day)
+    except Exception as e:
+        error = f"レース一覧を取得できませんでした（{e}）"
+    groups = {}
+    for r in races:
+        groups.setdefault(r["venue"], []).append(r)
+    for v in groups.values():
+        v.sort(key=lambda r: r["rno"])
+    return render_template("keiba_index.html", groups=list(groups.items()), races=races,
+                           date=day.isoformat(), error=error)
+
+
+@app.route("/keiba/race/<race_id>")
+def keiba_race(race_id):
+    if not race_id.isdigit() or len(race_id) != 12:
+        abort(404)
+    day = dt.date.fromisoformat(request.args.get("date") or today().isoformat())
+    if request.args.get("refresh"):
+        keiba_live._cache.clear()
+    try:
+        r = keiba_predict.predict_race(race_id, day)
+    except ValueError as e:
+        return f"<p>{e}</p><p><a href='/keiba'>戻る</a></p>", 404
+    return render_template("keiba_race.html", r=r)
+
+
+def _next_weekend() -> dt.date:
+    """今日が土日ならその日、平日なら次の土曜日。"""
+    d = today()
+    while d.weekday() < 5:
+        d += dt.timedelta(days=1)
+    return d
 
 
 def main():

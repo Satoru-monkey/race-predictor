@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="card">
-<h1>答え合わせ（バックテスト）</h1>
+<h1>答え合わせ（バックテスト）：競艇</h1>
 <p class="sub">学習に使っていない直近の期間で、予想がどれくらい当たったかの結果です。データは {{ m.trained_until }} まで。
 回収率は「払い戻し÷購入額」。100%を超えると黒字です。公営競技は払い戻し率が約75%なので、100%に届かないのが普通です。</p>
 </div>
@@ -30,4 +30,32 @@
 <p>{% for f, v in m[key].importance.items() %}<span class="tag">{{ labels(f) }} {{ '%.0f'|format(v*100) }}%</span>{% endfor %}</p>
 </div>
 {% endfor %}
+
+{% if km %}
+<div class="card">
+<h1>答え合わせ（バックテスト）：競馬</h1>
+<p class="sub">データは {{ km.trained_until }} まで。オッズは確定オッズを使っているため、締切前のオッズで買う実際よりも少し良く出ます。</p>
+</div>
+{% for key, label in [('blend','能力モデル＋オッズ（オッズ発表後の予想）'),('model','能力モデルだけ（オッズを使わない予想）'),('market','比較用：オッズだけ（1番人気を選ぶ）')] %}
+{% set b = km.backtest[key] %}
+<div class="card scroll">
+<h2>{{ label }}</h2>
+<p class="sub">{{ b.period[0] }} 〜 {{ b.period[1] }}・{{ '{:,}'.format(b.races) }}レース</p>
+<table>
+<tr><th>項目</th><th class="num">結果</th></tr>
+<tr><td>1着的中率（予想1位）</td><td class="num"><strong>{{ '%.1f'|format(b.win_hit_rate*100) }}%</strong></td></tr>
+<tr><td>単勝 予想1位を毎レース 回収率</td><td class="num">{{ '%.1f'|format(b.win_roi*100) }}%</td></tr>
+<tr><td>3連単 予想1点 的中率／回収率</td><td class="num">{{ '%.1f'|format(b.tri_top1_hit_rate*100) }}%／{{ '%.1f'|format(b.tri_top1_roi*100) }}%</td></tr>
+<tr><td>3連単 予想上位5点 的中率／回収率</td><td class="num">{{ '%.1f'|format(b.tri_top5_hit_rate*100) }}%／{{ '%.1f'|format(b.tri_top5_roi*100) }}%</td></tr>
+<tr><td>対数損失（小さいほど良い）</td><td class="num">{{ '%.4f'|format(b.logloss) }}</td></tr>
+</table>
+<table style="margin-top:10px"><tr><th>単勝の期待値がこれ以上の馬を全部買う</th><th class="num">買った数</th><th class="num">回収率</th></tr>
+{% for v in b.value_bets %}<tr><td>{{ v.ev_min }}</td><td class="num">{{ '{:,}'.format(v.bets) }}</td><td class="num">{{ '%.1f'|format(v.roi*100) if v.roi is not none else '-' }}%</td></tr>{% endfor %}
+</table>
+<table style="margin-top:10px"><tr><th>予想1位の1着確率</th><th class="num">レース数</th><th class="num">予想の平均</th><th class="num">実際の的中率</th><th class="num">単勝回収率</th></tr>
+{% for c in b.by_confidence %}<tr><td>{{ (c.min_prob*100)|int }}%以上</td><td class="num">{{ c.races }}</td><td class="num">{{ '%.1f'|format(c.avg_prob*100) }}%</td><td class="num"><strong>{{ '%.1f'|format(c.hit_rate*100) }}%</strong></td><td class="num">{{ '%.1f'|format(c.win_roi*100) }}%</td></tr>{% endfor %}
+</table>
+</div>
+{% endfor %}
+{% endif %}
 {% endblock %}

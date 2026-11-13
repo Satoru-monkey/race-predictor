@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ r.venue }}{{ r.rno }}R 予想{% endblock %}
+{% block body %}
+<div class="card">
+<h1>{{ r.venue }} {{ r.rno }}R <span class="sub">{{ r.title }}</span></h1>
+<div class="sub">{{ r.date }}・発走 {{ r.start or '-' }}・{{ {0:'芝',1:'ダート'}.get(r.race.surface, '') }}{{ r.race.distance or '' }}m・{{ r.race.heads }}頭
+・{% if r.mode == 'blend' %}能力モデル＋オッズで予想{% else %}能力モデルだけで予想（オッズ未発表）{% endif %}</div>
+<p style="margin:.6em 0 0">確信度 <span class="tag conf-{{ r.confidence_label }}">{{ r.confidence_label }}</span>
+予想1位の1着確率 <strong>{{ '%.0f'|format(r.confidence*100) }}%</strong>
+<a href="?date={{ r.date }}&refresh=1" style="margin-left:10px">最新の情報で予想し直す</a></p>
+{% for e in r.errors %}<p class="sub minus">{{ e }}</p>{% endfor %}
+</div>
+
+<div class="card">
+<h2>予想順位</h2>
+{% for h in r.horses %}
+<div class="boatrow">
+<div class="br-head">
+<span class="rank">{{ loop.index }}</span>
+<span class="boat w{{ h.waku }}">{{ h.umaban }}</span>
+<div class="br-name"><strong>{{ h.horse }}</strong><div class="sub">{{ h.sexage }}・{{ h.jockey }} {{ h.kinryo }}kg{% if h.weight %}・{{ h.weight }}{% endif %}{% if h.runs == 0 %}・過去データなし{% endif %}</div></div>
+<div class="br-prob"><div class="num"><strong>{{ '%.1f'|format(h.win*100) }}%</strong></div><div class="bar"><i style="width:{{ (h.win*100)|round(1) }}%"></i></div></div>
+</div>
+<div class="br-stats sub">
+<span>2着内 {{ '%.0f'|format(h.top2*100) }}%</span>
+<span>3着内 {{ '%.0f'|format(h.top3*100) }}%</span>
+<span>単勝 {{ h.odds or '-' }}</span>
+<span>期待値 {% if h.ev %}<b class="{{ 'plus' if h.ev >= 1 else '' }}">{{ '%.2f'|format(h.ev) }}</b>{% else %}-{% endif %}</span>
+<span>能力モデル {{ '%.1f'|format(h.p_model*100) }}%</span>
+{% if h.p_mkt is not none %}<span>オッズから見た確率 {{ '%.1f'|format(h.p_mkt*100) }}%</span>{% endif %}
+</div>
+<div>{% for t in h.plus %}<span class="tag plus">＋{{ t }}</span>{% endfor %}{% for t in h.minus %}<span class="tag minus">－{{ t }}</span>{% endfor %}</div>
+</div>
+{% endfor %}
+<p class="sub">「能力モデル」は馬・騎手・コースのデータだけで出した確率、「オッズから見た確率」は単勝オッズから計算した確率です。予想の確率は、この2つを過去データで決めた比率で合わせたものです。</p>
+</div>
+
+<div class="card scroll">
+<h2>3連単 予想上位10点</h2>
+<table><tr><th>買い目</th><th class="num">確率</th><th class="num">オッズ</th><th class="num">期待値</th></tr>
+{% for c in r.top_combos %}
+<tr><td>{{ c.combo }}</td><td class="num">{{ '%.1f'|format(c.p*100) }}%</td><td class="num">{{ c.odds or '-' }}</td>
+<td class="num">{% if c.ev %}<span class="{{ 'plus' if c.ev >= 1 else '' }}">{{ '%.2f'|format(c.ev) }}</span>{% else %}-{% endif %}</td></tr>
+{% endfor %}</table>
+</div>
+
+<div class="card">
+<h2>単勝で割に合いそうな馬（参考）</h2>
+{% if r.value_wins %}
+<p>{% for h in r.value_wins %}<span class="tag"><span class="boat w{{ h.waku }}" style="width:1.4em;height:1.4em;font-size:.8em">{{ h.umaban }}</span> {{ h.horse }}：確率{{ '%.1f'|format(h.win*100) }}% × {{ h.odds }}倍 ＝ 期待値{{ '%.2f'|format(h.ev) }}</span>{% endfor %}</p>
+{% else %}<p class="sub">期待値1.1以上（確率3%以上）の馬はいません。またはオッズが未発表です。</p>{% endif %}
+<p class="sub">この基準の過去の成績は「答え合わせ」ページにあります。</p>
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}競艇予想{% endblock %}</title>
+<title>{% block title %}順位予想{% endblock %}</title>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1d2330;--sub:#667085;--line:#e4e7ec;--accent:#1f6feb;--good:#12805c;--warn:#b54708;
 --b1:#ffffff;--b2:#222222;--b3:#e5312f;--b4:#1e66d0;--b5:#f5c400;--b6:#1a9b4b}
@@ -26,6 +26,7 @@ th{color:var(--sub);font-weight:500;font-size:.82rem}
 .boat{display:inline-flex;width:1.7em;height:1.7em;border-radius:6px;align-items:center;justify-content:center;font-weight:700;border:1px solid #9994}
 .c1{background:var(--b1);color:#000}.c2{background:var(--b2);color:#fff}.c3{background:var(--b3);color:#fff}
 .c4{background:var(--b4);color:#fff}.c5{background:var(--b5);color:#000}.c6{background:var(--b6);color:#fff}
+.w1{background:#fff;color:#000}.w2{background:#222;color:#fff}.w3{background:#e5312f;color:#fff}.w4{background:#1e66d0;color:#fff}.w5{background:#f5c400;color:#000}.w6{background:#1a9b4b;color:#fff}.w7{background:#f08a24;color:#fff}.w8{background:#f49ac1;color:#000}
 .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;min-width:60px}
 .bar>i{display:block;height:100%;background:var(--accent)}
 .tag{display:inline-block;font-size:.78rem;padding:1px 8px;border-radius:999px;border:1px solid var(--line);margin:1px 2px 1px 0}
@@ -51,8 +52,8 @@ button{background:var(--accent);color:#fff;border-color:transparent;cursor:point
 </style>
 </head>
 <body>
-<header><a href="/">競艇 順位予想</a>
-<nav><a href="/">今日のレース</a><a href="/report">答え合わせ</a><a href="/log">予想の記録</a></nav></header>
+<header><a href="/">順位予想</a>
+<nav><a href="/">競艇</a><a href="/keiba">競馬</a><a href="/report">答え合わせ</a><a href="/log">予想の記録</a></nav></header>
 <main>{% block body %}{% endblock %}</main>
 </body>
 </html>

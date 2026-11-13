@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}競馬 予想{% endblock %}
+{% block body %}
+<div class="card">
+<h1>競馬（JRA）</h1>
+<form class="inline" method="get" action="/keiba">
+<label>日付 <input type="date" name="date" value="{{ date }}"></label><button>表示</button>
+</form>
+<p class="sub">レースを開くと、出馬表・過去の成績・オッズを取り込んで予想します（1レースにつき数秒かかります）。障害レースは対象外です。</p>
+</div>
+{% if error %}<div class="card note">{{ error }}</div>{% endif %}
+{% if not races and not error %}<div class="card">この日のJRAのレースは見つかりませんでした。出馬表は、ふつう開催の2〜3日前に出ます。</div>{% endif %}
+{% for venue, rs in groups %}
+<div class="card">
+<h2>{{ venue }}</h2>
+<table>
+{% for r in rs %}
+<tr><td style="width:3em">{{ r.rno }}R</td><td><a href="/keiba/race/{{ r.race_id }}?date={{ date }}">{{ r.title }}</a></td><td class="num sub">{{ r.start or '' }}</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endfor %}
+{% endblock %}
