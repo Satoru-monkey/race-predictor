@@ -10,7 +10,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from .features import FEATURES_EX, FEATURES_NO_EX, add_basic, add_history
+from .features import FEATURES_EX, FEATURES_NO_EX, add_basic, add_history, history_tables
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
@@ -289,6 +289,14 @@ def report_md(name: str, bt: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def save_history_tables():
+    """予想に必要な集計表（選手・枠・場ごとの成績）だけを models/ に保存する。
+    これがあれば、過去データを持っていないPCでも予想できる。"""
+    hist = pd.read_parquet(ROOT / "data" / "races.parquet", columns=["toban", "boat", "jcd", "rank", "st"])
+    for name, t in history_tables(hist).items():
+        t.to_parquet(MODELS / f"boat_hist_{name}.parquet", index=False)
+
+
 def main(test_days: int = 60, valid_days: int = 30):
     df = load_dataset()
     dates = sorted(df["date"].unique())
@@ -320,6 +328,7 @@ def main(test_days: int = 60, valid_days: int = 30):
                          "importance": (imp / imp.sum()).round(4).head(15).to_dict()}
         print(label, json.dumps({k: v for k, v in bt.items() if k != "by_confidence"}, ensure_ascii=False, default=float))
     summary["trained_until"] = dates[-1]
+    save_history_tables()
     (MODELS / "meta.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1, default=float))
     (REPORTS / "backtest.md").write_text("\n".join(md))
     print("reports/backtest.md を保存しました")

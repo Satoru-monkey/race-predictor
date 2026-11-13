@@ -47,6 +47,10 @@ def booster(name: str) -> lgb.Booster:
 
 @lru_cache(maxsize=1)
 def hist_tables() -> dict:
+    """選手・枠・場ごとの成績表。学習時に保存した models/ の集計表を使う。"""
+    names = ("racer", "lane", "venue")
+    if all((MODELS / f"boat_hist_{n}.parquet").exists() for n in names):
+        return {n: pd.read_parquet(MODELS / f"boat_hist_{n}.parquet") for n in names}
     hist = pd.read_parquet(ROOT / "data" / "races.parquet",
                            columns=["toban", "boat", "jcd", "rank", "st"])
     return history_tables(hist)

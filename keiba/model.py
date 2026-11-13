@@ -17,7 +17,7 @@ import pandas as pd
 
 from boatrace.model import TrioScore, trifecta_probs, trio_md
 
-from .features import FEATURES, add_history, add_relative
+from .features import FEATURES, add_history, add_relative, latest_tables
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
@@ -157,6 +157,13 @@ def report_md(label: str, bt: dict) -> str:
     return "\n".join(out) + "\n"
 
 
+def save_history_tables():
+    """予想に必要な集計表（馬の近走・騎手・調教師の成績）だけを models/ に保存する。"""
+    hist = pd.read_parquet(ROOT / "data" / "keiba" / "races.parquet")
+    for name, t in latest_tables(hist[hist["surface"] != 2]).items():
+        t.to_parquet(MODELS / f"keiba_hist_{name}.parquet", index=False)
+
+
 def main(test_days: int = 90, valid_days: int = 60):
     df = load_dataset()
     last = pd.to_datetime(df["date"].max())
@@ -202,6 +209,7 @@ def main(test_days: int = 90, valid_days: int = 60):
             "importance": (imp / imp.sum()).round(4).head(15).to_dict(), "trained_until": df["date"].max()}
     (MODELS / "keiba_meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1, default=float))
     (REPORTS / "keiba_backtest.md").write_text("\n".join(md))
+    save_history_tables()
     print("合成の比率", a, b, "／ reports/keiba_backtest.md を保存しました")
 
 

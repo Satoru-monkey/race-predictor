@@ -51,6 +51,9 @@ def booster():
 
 @lru_cache(maxsize=1)
 def tables():
+    names = ("horse", "surface", "j", "t")
+    if all((MODELS / f"keiba_hist_{n}.parquet").exists() for n in names):
+        return {n: pd.read_parquet(MODELS / f"keiba_hist_{n}.parquet") for n in names}
     hist = pd.read_parquet(ROOT / "data" / "keiba" / "races.parquet")
     return latest_tables(hist[hist["surface"] != 2])
 

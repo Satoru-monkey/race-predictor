@@ -5,6 +5,3 @@ data/races.parquet
 data/log/
 .venv/
 data/keiba/
-models/keiba.txt
-models/keiba_meta.json
-reports/keiba_backtest.md
