@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from boatrace.model import top_n_probs, trifecta_probs
+from boatrace.predict import trio_view
 
 from . import live
 from .features import add_relative, apply_latest, latest_tables
@@ -84,8 +85,9 @@ def predict_race(race_id: str, day: dt.date) -> dict:
     try:
         ow = live.odds_win(race_id)
         ot = live.odds_trifecta(race_id)
+        of = live.odds_trio(race_id)
     except Exception as e:
-        ow, ot = {}, {}
+        ow, ot, of = {}, {}, {}
         errors.append(f"オッズを取得できませんでした（{e}）")
     df["odds"] = df["umaban"].map(ow)
     have_odds = df["odds"].notna().sum() >= max(2, len(df) - 1)
@@ -132,6 +134,9 @@ def predict_race(race_id: str, day: dt.date) -> dict:
         "race_id": race_id, "date": day.isoformat(), "venue": VENUES.get(race["jcd"]), "rno": race["rno"],
         "title": race["title"], "start": race["start"], "race": race, "mode": mode,
         "horses": horses, "top_combos": top_combos, "errors": errors, "confidence": top["win"],
+        "trio_conf": next(x["hit_p"] for x in trio_view(tri, {}, None)["plans"] if x["key"] == "top3"),
         "confidence_label": "高" if top["win"] >= 0.4 else ("中" if top["win"] >= 0.25 else "低"),
+        "wakus": {h["umaban"]: h["waku"] for h in horses},
+        "trio": trio_view(tri, of, meta()["backtest"][mode].get("trio")),
         "value_wins": [h for h in horses if h["ev"] and h["ev"] >= 1.1 and h["win"] >= 0.03],
     }

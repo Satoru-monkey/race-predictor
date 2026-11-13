@@ -140,3 +140,13 @@ def odds_trifecta(race_id: str) -> dict[tuple, float]:
         except (ValueError, IndexError):
             pass
     return out
+
+
+def odds_trio(race_id: str) -> dict[tuple, float]:
+    out = {}
+    for k, v in _odds(race_id, 7).items():
+        try:
+            out[tuple(sorted((int(k[0:2]), int(k[2:4]), int(k[4:6]))))] = float(v[0])
+        except (ValueError, IndexError):
+            pass
+    return out

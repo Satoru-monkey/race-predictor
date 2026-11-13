@@ -6,7 +6,9 @@
 <div class="sub">{{ r.date }}・締切 {{ r.deadline or '-' }}・
 {% if r.model == 'ex' %}展示タイムを使ったモデル{% else %}番組表だけのモデル（展示タイムはまだ出ていません）{% endif %}
 {% if r.before and r.before.weather %}・{{ r.before.weather.weather or '' }} 風{{ r.before.weather.wind|int if r.before.weather.wind is not none else '-' }}m 波{{ r.before.weather.wave|int if r.before.weather.wave is not none else '-' }}cm{% endif %}</div>
-<p style="margin:.6em 0 0">確信度 <span class="tag conf-{{ r.confidence_label }}">{{ r.confidence_label }}</span>
+<p style="margin:.6em 0 0">3連複の確信度 <span class="tag conf-{{ trio_label(r.trio_conf) }}">{{ trio_label(r.trio_conf) }}</span>
+上位3点のどれかが当たる確率 <strong>{{ '%.0f'|format(r.trio_conf*100) }}%</strong></p>
+<p style="margin:.3em 0 0">1着の確信度 <span class="tag conf-{{ r.confidence_label }}">{{ r.confidence_label }}</span>
 予想1位の1着確率 <strong>{{ '%.0f'|format(r.confidence*100) }}%</strong>
 <a href="?refresh=1" style="margin-left:10px">最新の情報で予想し直す</a></p>
 {% for e in r.errors %}<p class="sub minus">{{ e }}</p>{% endfor %}
@@ -35,6 +37,8 @@
 {% endfor %}
 <p class="sub">1着の数字は、その艇が1着になる確率。期待値＝1着確率×単勝オッズで、1.0を超えると「確率のわりにオッズが高い」ことを表します。＋／－は、その艇の予想を押し上げた・押し下げた要素です。</p>
 </div>
+
+{% with trio=r.trio, cls="c", wakus=None %}{% include "_trio.html" %}{% endwith %}
 
 <div class="card scroll">
 <h2>3連単 予想上位10点</h2>

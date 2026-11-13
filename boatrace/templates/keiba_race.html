@@ -5,7 +5,9 @@
 <h1>{{ r.venue }} {{ r.rno }}R <span class="sub">{{ r.title }}</span></h1>
 <div class="sub">{{ r.date }}・発走 {{ r.start or '-' }}・{{ {0:'芝',1:'ダート'}.get(r.race.surface, '') }}{{ r.race.distance or '' }}m・{{ r.race.heads }}頭
 ・{% if r.mode == 'blend' %}能力モデル＋オッズで予想{% else %}能力モデルだけで予想（オッズ未発表）{% endif %}</div>
-<p style="margin:.6em 0 0">確信度 <span class="tag conf-{{ r.confidence_label }}">{{ r.confidence_label }}</span>
+<p style="margin:.6em 0 0">3連複の確信度 <span class="tag conf-{{ trio_label(r.trio_conf) }}">{{ trio_label(r.trio_conf) }}</span>
+上位3点のどれかが当たる確率 <strong>{{ '%.0f'|format(r.trio_conf*100) }}%</strong></p>
+<p style="margin:.3em 0 0">1着の確信度 <span class="tag conf-{{ r.confidence_label }}">{{ r.confidence_label }}</span>
 予想1位の1着確率 <strong>{{ '%.0f'|format(r.confidence*100) }}%</strong>
 <a href="?date={{ r.date }}&refresh=1" style="margin-left:10px">最新の情報で予想し直す</a></p>
 {% for e in r.errors %}<p class="sub minus">{{ e }}</p>{% endfor %}
@@ -34,6 +36,8 @@
 {% endfor %}
 <p class="sub">「能力モデル」は馬・騎手・コースのデータだけで出した確率、「オッズから見た確率」は単勝オッズから計算した確率です。予想の確率は、この2つを過去データで決めた比率で合わせたものです。</p>
 </div>
+
+{% with trio=r.trio, cls="w", wakus=r.wakus %}{% include "_trio.html" %}{% endwith %}
 
 <div class="card scroll">
 <h2>3連単 予想上位10点</h2>

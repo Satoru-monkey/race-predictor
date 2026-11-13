@@ -1,0 +1,20 @@
+<div class="card scroll">
+<h2>3連複</h2>
+<table><tr><th>買い目</th><th class="num">確率</th><th class="num">オッズ</th><th class="num">期待値</th></tr>
+{% for c in trio.top %}
+<tr><td>{% for x in c.combo.split('=') %}<span class="boat {{ cls }}{{ (wakus or {}).get(x|int, x) }}">{{ x }}</span> {% endfor %}</td>
+<td class="num">{{ '%.1f'|format(c.p*100) }}%</td><td class="num">{{ c.odds or '-' }}</td>
+<td class="num">{% if c.ev %}<span class="{{ 'plus' if c.ev >= 1 else '' }}">{{ '%.2f'|format(c.ev) }}</span>{% else %}-{% endif %}</td></tr>
+{% endfor %}</table>
+<h2 style="margin-top:16px">買い方ごとの買い目</h2>
+{% for p in trio.plans %}
+<div class="boatrow">
+<div class="br-head"><div class="br-name"><strong>{{ p.label }}</strong> <span class="sub">{{ p.combos|length }}点</span></div>
+<div class="br-prob" style="width:auto"><span class="sub">当たる確率</span> <strong>{{ '%.0f'|format(p.hit_p*100) }}%</strong></div></div>
+<div style="margin:4px 0">{% for c in p.combos %}<span class="tag">{{ c }}</span>{% endfor %}</div>
+<div class="sub">期待値 {% if p.ev %}<b class="{{ 'plus' if p.ev >= 1 else '' }}">{{ '%.2f'|format(p.ev) }}</b>{% else %}-{% endif %}
+{% if p.past and p.past.hit_rate is not none %}・過去の的中率 {{ '%.1f'|format(p.past.hit_rate*100) }}%・過去の回収率 {{ '%.1f'|format(p.past.roi*100) }}%{% endif %}</div>
+</div>
+{% endfor %}
+<p class="sub">「このレースで当たる確率」は、その買い方のどれかが当たる確率です。期待値は、買い目すべてを100円ずつ買ったときの「払い戻しの見込み÷購入額」です。過去の的中率・回収率は、答え合わせ期間の全レースでその買い方をした場合の成績です。</p>
+</div>

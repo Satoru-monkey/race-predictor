@@ -15,7 +15,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from boatrace.model import trifecta_probs
+from boatrace.model import TrioScore, trifecta_probs, trio_md
 
 from .features import FEATURES, add_history, add_relative
 
@@ -87,6 +87,7 @@ def backtest(df: pd.DataFrame, p: np.ndarray, lam: float, value_th=(1.0, 1.1, 1.
     val = {th: [0, 0.0] for th in value_th}
     buckets = {}
     ll = []
+    trio = TrioScore()
     for _, g in d.groupby("race_id", sort=False):
         n += 1
         top = g.loc[g["_p"].idxmax()]
@@ -104,6 +105,7 @@ def backtest(df: pd.DataFrame, p: np.ndarray, lam: float, value_th=(1.0, 1.1, 1.
             val[th][1] += g["pay_win"].iloc[0] if (sel["umaban"] == winner["umaban"]).any() else 0
         pw = dict(zip(g["umaban"], g["_p"]))
         tri = trifecta_probs(pw, lam)
+        trio.add(tri, g["trio"].iloc[0] if "trio" in g else None, g["pay_trio"].iloc[0] if "pay_trio" in g else None)
         ranked = sorted(tri, key=tri.get, reverse=True)[:5]
         try:
             actual = tuple(int(x) for x in str(g["tri"].iloc[0]).split("-"))
@@ -131,7 +133,7 @@ def backtest(df: pd.DataFrame, p: np.ndarray, lam: float, value_th=(1.0, 1.1, 1.
         "win_hit_rate": hit / n, "favorite_hit_rate": fav_hit / n, "win_roi": win_ret / (100 * n),
         "tri_top1_hit_rate": tri1 / n, "tri_top1_roi": tri1_ret / (100 * n),
         "tri_top5_hit_rate": tri5 / n, "tri_top5_roi": tri5_ret / (500 * n),
-        "logloss": float(np.mean(ll)), "lambda": lam, "by_confidence": conf,
+        "logloss": float(np.mean(ll)), "lambda": lam, "by_confidence": conf, "trio": trio.result(), "trio_conf": trio.conf_result(),
         "value_bets": [{"ev_min": th, "bets": v[0], "roi": (v[1] / (100 * v[0])) if v[0] else None}
                        for th, v in val.items()],
     }
@@ -151,6 +153,7 @@ def report_md(label: str, bt: dict) -> str:
     out += ["", "| 予想1位の1着確率 | レース数 | 予想の平均 | 実際の的中率 | 単勝回収率 |", "|---|---|---|---|---|"]
     out += [f"| {int(c['min_prob'] * 100)}%以上 | {c['races']:,} | {pct(c['avg_prob'])} | {pct(c['hit_rate'])} | {pct(c['win_roi'])} |"
             for c in bt["by_confidence"]]
+    out += trio_md(bt["trio"], bt["trio_conf"])
     return "\n".join(out) + "\n"
 
 

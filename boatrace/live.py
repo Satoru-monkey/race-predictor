@@ -147,5 +147,16 @@ def odds_trifecta(jcd: str, rno: int, day: dt.date) -> dict[tuple, float]:
     return out
 
 
+def odds_trio(jcd: str, rno: int, day: dt.date) -> dict[tuple, float]:
+    """3連複オッズ。表は三角形で、行ごとに「1着側の列＝1〜(2番目の艇-1)」が並ぶ。"""
+    s = _soup(f"{SITE}/odds3f?rno={rno}&jcd={jcd}&hd={day:%Y%m%d}", ttl=60)
+    vals = [_num(td.get_text(strip=True)) for td in s.select("td.oddsPoint")]
+    if len(vals) != 20:
+        return {}
+    rows = [(b, c) for b in range(2, 6) for c in range(b + 1, 7)]
+    ordered = [(a, b, c) for b, c in rows for a in range(1, b)]
+    return {k: v for k, v in zip(ordered, vals) if v}
+
+
 def all_trifectas():
     return list(itertools.permutations(range(1, 7), 3))

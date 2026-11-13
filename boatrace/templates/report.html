@@ -26,6 +26,16 @@
 <td class="num">{{ '%.1f'|format(c.tri_hit_rate*100) }}%</td><td class="num">{{ '%.1f'|format(c.tri_roi*100) }}%</td></tr>
 {% endfor %}</table>
 <p class="sub">「予想の平均」と「実際の的中率」が近いほど、確率の出し方が正確です。</p>
+{% if b.trio %}
+<h2 style="margin-top:14px">3連複の買い方別</h2>
+<table><tr><th>買い方</th><th class="num">点数</th><th class="num">的中率</th><th class="num">回収率</th></tr>
+{% for t in b.trio %}<tr><td>{{ t.label }}</td><td class="num">{{ t.points }}</td><td class="num"><strong>{{ '%.1f'|format(t.hit_rate*100) }}%</strong></td><td class="num">{{ '%.1f'|format(t.roi*100) }}%</td></tr>{% endfor %}
+</table>
+<h2 style="margin-top:14px">3連複の確信度別</h2>
+<table><tr><th>上位3点の的中確率</th><th class="num">レース数</th><th class="num">予想の平均</th><th class="num">上位3点<br>的中率</th><th class="num">上位3点<br>回収率</th><th class="num">上位5点<br>的中率</th><th class="num">上位5点<br>回収率</th></tr>
+{% for c in b.trio_conf %}<tr><td>{{ (c.min_prob*100)|int }}%以上</td><td class="num">{{ '{:,}'.format(c.races) }}</td><td class="num">{{ '%.1f'|format(c.avg_prob*100) }}%</td><td class="num"><strong>{{ '%.1f'|format(c.hit3*100) }}%</strong></td><td class="num">{{ '%.1f'|format(c.roi3*100) }}%</td><td class="num">{{ '%.1f'|format(c.hit5*100) }}%</td><td class="num">{{ '%.1f'|format(c.roi5*100) }}%</td></tr>{% endfor %}
+</table>
+{% endif %}
 <h2 style="margin-top:14px">よく効いている要素</h2>
 <p>{% for f, v in m[key].importance.items() %}<span class="tag">{{ labels(f) }} {{ '%.0f'|format(v*100) }}%</span>{% endfor %}</p>
 </div>
@@ -55,6 +65,16 @@
 <table style="margin-top:10px"><tr><th>予想1位の1着確率</th><th class="num">レース数</th><th class="num">予想の平均</th><th class="num">実際の的中率</th><th class="num">単勝回収率</th></tr>
 {% for c in b.by_confidence %}<tr><td>{{ (c.min_prob*100)|int }}%以上</td><td class="num">{{ c.races }}</td><td class="num">{{ '%.1f'|format(c.avg_prob*100) }}%</td><td class="num"><strong>{{ '%.1f'|format(c.hit_rate*100) }}%</strong></td><td class="num">{{ '%.1f'|format(c.win_roi*100) }}%</td></tr>{% endfor %}
 </table>
+{% if b.trio %}
+<h2 style="margin-top:14px">3連複の買い方別</h2>
+<table><tr><th>買い方</th><th class="num">点数</th><th class="num">的中率</th><th class="num">回収率</th></tr>
+{% for t in b.trio %}<tr><td>{{ t.label }}</td><td class="num">{{ t.points }}</td><td class="num"><strong>{{ '%.1f'|format(t.hit_rate*100) }}%</strong></td><td class="num">{{ '%.1f'|format(t.roi*100) }}%</td></tr>{% endfor %}
+</table>
+<h2 style="margin-top:14px">3連複の確信度別</h2>
+<table><tr><th>上位3点の的中確率</th><th class="num">レース数</th><th class="num">予想の平均</th><th class="num">上位3点<br>的中率</th><th class="num">上位3点<br>回収率</th><th class="num">上位5点<br>的中率</th><th class="num">上位5点<br>回収率</th></tr>
+{% for c in b.trio_conf %}<tr><td>{{ (c.min_prob*100)|int }}%以上</td><td class="num">{{ '{:,}'.format(c.races) }}</td><td class="num">{{ '%.1f'|format(c.avg_prob*100) }}%</td><td class="num"><strong>{{ '%.1f'|format(c.hit3*100) }}%</strong></td><td class="num">{{ '%.1f'|format(c.roi3*100) }}%</td><td class="num">{{ '%.1f'|format(c.hit5*100) }}%</td><td class="num">{{ '%.1f'|format(c.roi5*100) }}%</td></tr>{% endfor %}
+</table>
+{% endif %}
 </div>
 {% endfor %}
 {% endif %}

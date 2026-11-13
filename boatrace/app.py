@@ -30,20 +30,32 @@ def conf_label(p: float) -> str:
     return "高" if p >= 0.7 else ("中" if p >= 0.55 else "低")
 
 
+def trio_label(p: float) -> str:
+    """3連複の確信度（上位3点のどれかが当たる確率）。"""
+    return "高" if p >= 0.6 else ("中" if p >= 0.45 else "低")
+
+
+app.jinja_env.globals["trio_label"] = trio_label
+
+
 @app.route("/")
 def index():
     day = dt.date.fromisoformat(request.args.get("date") or today().isoformat())
-    sort = request.args.get("sort", "conf")
+    sort = request.args.get("sort", "trio")
     high = request.args.get("high") == "1"
     races = predict.day_overview(day)
     for r in races:
         r["label"] = conf_label(r["top_p"])
+        r["trio_label"] = trio_label(r["trio_p"])
     if high:
-        races = [r for r in races if r["label"] == "高"]
+        key = "trio_label" if sort == "trio" else "label"
+        races = [r for r in races if r[key] == "高"]
     if sort == "time":
         races.sort(key=lambda r: (r["deadline"] or "99", r["venue"]))
-    else:
+    elif sort == "win":
         races.sort(key=lambda r: -r["top_p"])
+    else:
+        races.sort(key=lambda r: -r["trio_p"])
     return render_template("index.html", races=races, date=day.isoformat(), sort=sort, high=high)
 
 

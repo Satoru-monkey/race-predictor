@@ -10,7 +10,7 @@ import pandas as pd
 
 from . import live
 from .features import add_basic, apply_history, history_tables
-from .model import top_n_probs, trifecta_probs
+from .model import TRIO_PLANS, top_n_probs, trifecta_probs, trio_plan_combos, trio_probs
 from .parse import VENUES
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -82,15 +82,20 @@ def day_overview(day: dt.date) -> list[dict]:
     df = _features(prog)
     p, _, _ = _probs(df, "noex")
     df["p"] = p
+    lam = meta()["noex"]["lambda"]
     out = []
     for rid, g in df.groupby("race_id", sort=False):
         g = g.sort_values("p", ascending=False)
         top = g.iloc[0]
+        tri = trifecta_probs(dict(zip(g["boat"].astype(int), g["p"])), lam)
+        trio = trio_probs(tri)
+        top3 = sorted(trio, key=trio.get, reverse=True)[:3]
         out.append({
             "race_id": rid, "jcd": top["jcd"], "venue": VENUES.get(top["jcd"], top["jcd"]),
             "rno": int(top["rno"]), "title": top["title"], "deadline": top["deadline"],
             "top_boat": int(top["boat"]), "top_name": top["name"], "top_p": float(top["p"]),
             "order": [int(b) for b in g["boat"]],
+            "trio_p": sum(trio[c] for c in top3), "trio_top": ["=".join(map(str, c)) for c in top3],
         })
     return out
 
@@ -114,11 +119,12 @@ def predict_race(day: dt.date, jcd: str, rno: int, use_live: bool = True) -> dic
     tri = trifecta_probs(pw, lam)
     tops = top_n_probs(tri)
 
-    odds_w, odds_t = {}, {}
+    odds_w, odds_t, odds_f = {}, {}, {}
     if use_live:
         try:
             odds_w = live.odds_win(jcd, rno, day)
             odds_t = live.odds_trifecta(jcd, rno, day)
+            odds_f = live.odds_trio(jcd, rno, day)
         except Exception as e:
             errors.append(f"オッズを取得できませんでした（{e}）")
 
@@ -158,6 +164,26 @@ def predict_race(day: dt.date, jcd: str, rno: int, use_live: bool = True) -> dic
         "title": prog["title"].iloc[0], "deadline": prog["deadline"].iloc[0],
         "model": name, "before": before, "boats": boats, "top_combos": top_combos,
         "value_bets": value[:8], "errors": errors,
+        "trio": trio_view(tri, odds_f, meta()[name]["backtest"].get("trio")),
         "confidence": top["win"],
+        "trio_conf": next(x["hit_p"] for x in trio_view(tri, {}, None)["plans"] if x["key"] == "top3"),
         "confidence_label": "高" if top["win"] >= 0.7 else ("中" if top["win"] >= 0.55 else "低"),
     }
+
+
+def trio_view(tri: dict, odds: dict, bt_trio: list | None) -> dict:
+    """画面用の3連複の情報（上位10点と、買い方ごとの買い目・過去の成績）。"""
+    trio = trio_probs(tri)
+    ranked = sorted(trio.items(), key=lambda kv: kv[1], reverse=True)
+    top = [{"combo": "=".join(map(str, k)), "p": v, "odds": odds.get(k),
+            "ev": v * odds[k] if k in odds else None} for k, v in ranked[:10]]
+    plans = []
+    past = {r["plan"]: r for r in (bt_trio or [])}
+    for key, combos in trio_plan_combos(tri).items():
+        if key == "top10":
+            continue
+        hit_p = sum(trio[c] for c in combos)
+        exp = sum(trio[c] * odds[c] for c in combos if c in odds) / len(combos) if all(c in odds for c in combos) else None
+        plans.append({"key": key, "label": TRIO_PLANS[key][0], "combos": ["=".join(map(str, c)) for c in combos],
+                      "hit_p": hit_p, "ev": exp, "past": past.get(key)})
+    return {"top": top, "plans": plans}

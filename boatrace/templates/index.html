@@ -3,12 +3,13 @@
 <div class="card">
 <form class="inline" method="get" action="/">
 <label>日付 <input type="date" name="date" value="{{ date }}"></label>
-<label>並び順 <select name="sort"><option value="conf" {% if sort=='conf' %}selected{% endif %}>確信度が高い順</option><option value="time" {% if sort=='time' %}selected{% endif %}>締切が早い順</option></select></label>
+<label>並び順 <select name="sort"><option value="trio" {% if sort=='trio' %}selected{% endif %}>3連複の確信度が高い順</option><option value="win" {% if sort=='win' %}selected{% endif %}>1着の確信度が高い順</option><option value="time" {% if sort=='time' %}selected{% endif %}>締切が早い順</option></select></label>
 <label><input type="checkbox" name="high" value="1" {% if high %}checked{% endif %}> 確信度「高」だけ</label>
 <button>表示</button>
 </form>
 <p class="sub">番組表だけで出した予想です。各レースを開くと、展示タイムとオッズを取り込んで予想し直します。<br>
-確信度＝予想1位の艇の1着確率。高：70%以上／中：55%以上／低：それ未満。</p>
+3連複の確信度＝3連複の上位3点のどれかが当たる確率（高：60%以上／中：45%以上）。<br>
+1着の確信度＝予想1位の艇の1着確率（高：70%以上／中：55%以上）。</p>
 </div>
 {% if not races %}
 <div class="card">この日の番組表が見つかりませんでした。番組表は前日の夕方ごろに公開されます。</div>
@@ -18,11 +19,12 @@
 <a class="card race" href="/race/{{ date }}/{{ r.jcd }}/{{ r.rno }}">
 <div style="display:flex;justify-content:space-between;align-items:center">
 <strong>{{ r.venue }} {{ r.rno }}R</strong>
-<span class="tag conf-{{ r.label }}">確信度 {{ r.label }}</span></div>
+<span><span class="tag conf-{{ r.trio_label }}">3連複 {{ r.trio_label }}</span><span class="tag conf-{{ r.label }}">1着 {{ r.label }}</span></span></div>
 <div class="sub">{{ r.title }}・締切 {{ r.deadline or '-' }}</div>
 <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
 <span class="boat c{{ r.top_boat }}">{{ r.top_boat }}</span>{{ r.top_name }}
 <span class="num" style="margin-left:auto">{{ '%.0f'|format(r.top_p*100) }}%</span></div>
+<div class="sub">3連複 上位3点：{{ r.trio_top|join('、') }}（どれかが当たる確率 {{ '%.0f'|format(r.trio_p*100) }}%）</div>
 <div class="sub">予想順：{% for b in r.order %}<span class="boat c{{ b }}" style="width:1.4em;height:1.4em;font-size:.8em;margin-right:2px">{{ b }}</span>{% endfor %}</div>
 </a>
 {% endfor %}

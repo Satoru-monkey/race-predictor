@@ -122,6 +122,10 @@ def parse_k_lines(lines: list[bytes], date: str) -> tuple[list[dict], list[dict]
                 cur["tri"], cur["pay_tri"] = p[1], int(p[2])
                 if "人気" in p:
                     cur["pop_tri"] = int(p[p.index("人気") + 1])
+        elif s.startswith("3連複"):
+            p = s.split()
+            if len(p) >= 3 and p[2].isdigit():
+                cur["trio"], cur["pay_trio"] = p[1], int(p[2])
         elif s.startswith("2連単"):
             p = s.split()
             if len(p) >= 3 and p[2].isdigit():

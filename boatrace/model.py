@@ -54,6 +54,103 @@ def top_n_probs(tri: dict[tuple, float]) -> dict[int, dict[str, float]]:
     return res
 
 
+def trio_probs(tri: dict[tuple, float]) -> dict[tuple, float]:
+    """3連単の確率から3連複の確率を出す（同じ3つの並び6通りを足す）。キーは小さい順。"""
+    out: dict[tuple, float] = {}
+    for k, v in tri.items():
+        key = tuple(sorted(k))
+        out[key] = out.get(key, 0.0) + v
+    return out
+
+
+TRIO_PLANS = {  # 名前: (説明, 点数)
+    "top1": ("3連複 上位1点", 1), "top3": ("3連複 上位3点", 3), "top5": ("3連複 上位5点", 5),
+    "top10": ("3連複 上位10点", 10), "box4": ("3着内に来やすい4つのボックス", 4),
+    "box5": ("3着内に来やすい5つのボックス", 10),
+}
+
+
+def trio_plan_combos(tri: dict[tuple, float]) -> dict[str, list[tuple]]:
+    """3連複の買い方ごとの買い目。"""
+    trio = trio_probs(tri)
+    ranked = sorted(trio, key=trio.get, reverse=True)
+    top3 = top_n_probs(tri)
+    order = sorted(top3, key=lambda b: top3[b]["top3"], reverse=True)
+    return {
+        "top1": ranked[:1], "top3": ranked[:3], "top5": ranked[:5], "top10": ranked[:10],
+        "box4": [tuple(sorted(c)) for c in itertools.combinations(order[:4], 3)],
+        "box5": [tuple(sorted(c)) for c in itertools.combinations(order[:5], 3)],
+    }
+
+
+class TrioScore:
+    """3連複の買い方ごとに、的中数と払い戻しを数える。"""
+
+    BUCKETS = (0.7, 0.6, 0.5, 0.4, 0.3, 0.0)
+
+    def __init__(self):
+        self.n = 0
+        self.hit = {k: 0 for k in TRIO_PLANS}
+        self.ret = {k: 0.0 for k in TRIO_PLANS}
+        self.conf: dict[float, dict] = {}
+
+    def add(self, tri: dict[tuple, float], actual: str | None, pay):
+        try:
+            act = tuple(sorted(int(x) for x in str(actual).split("-")))
+        except ValueError:
+            return
+        if len(act) != 3:
+            return
+        self.n += 1
+        plans = trio_plan_combos(tri)
+        for k, combos in plans.items():
+            if act in combos:
+                self.hit[k] += 1
+                self.ret[k] += pay if pd.notna(pay) else 0
+        # 3連複の確信度：上位3点のどれかが当たる確率
+        trio = trio_probs(tri)
+        pc = sum(trio[c] for c in plans["top3"])
+        key = next(b for b in self.BUCKETS if pc >= b)
+        c = self.conf.setdefault(key, {"races": 0, "prob": 0.0, "hit1": 0, "ret1": 0.0, "hit3": 0, "ret3": 0.0, "hit5": 0, "ret5": 0.0})
+        c["races"] += 1
+        c["prob"] += pc
+        for name, k in (("1", "top1"), ("3", "top3"), ("5", "top5")):
+            if act in plans[k]:
+                c["hit" + name] += 1
+                c["ret" + name] += pay if pd.notna(pay) else 0
+
+    def conf_result(self) -> list[dict]:
+        out = []
+        for k in sorted(self.conf, reverse=True):
+            c = self.conf[k]
+            r = c["races"]
+            out.append({"min_prob": k, "races": r, "share": r / self.n, "avg_prob": c["prob"] / r,
+                        "hit1": c["hit1"] / r, "roi1": c["ret1"] / (100 * r),
+                        "hit3": c["hit3"] / r, "roi3": c["ret3"] / (300 * r),
+                        "hit5": c["hit5"] / r, "roi5": c["ret5"] / (500 * r)})
+        return out
+
+    def result(self) -> list[dict]:
+        return [{"plan": k, "label": TRIO_PLANS[k][0], "points": TRIO_PLANS[k][1],
+                 "hit_rate": self.hit[k] / self.n if self.n else None,
+                 "roi": self.ret[k] / (100 * TRIO_PLANS[k][1] * self.n) if self.n else None}
+                for k in TRIO_PLANS]
+
+
+def trio_md(rows: list[dict], conf: list[dict] | None = None) -> list[str]:
+    pct = lambda x: "-" if x is None else f"{x * 100:.1f}%"
+    out = ["", "### 3連複の買い方別", "", "| 買い方 | 点数 | 的中率 | 回収率 |", "|---|---|---|---|"]
+    out += [f"| {r['label']} | {r['points']} | {pct(r['hit_rate'])} | {pct(r['roi'])} |" for r in rows]
+    if conf:
+        out += ["", "### 3連複の確信度別（上位3点のどれかが当たる確率で分けたもの）", "",
+                "| 上位3点の的中確率 | レース数 | 割合 | 予想の平均 | 上位3点 的中率 | 上位3点 回収率 | 上位1点 的中率 | 上位1点 回収率 | 上位5点 的中率 | 上位5点 回収率 |",
+                "|---|---|---|---|---|---|---|---|---|---|"]
+        out += [f"| {int(c['min_prob'] * 100)}%以上 | {c['races']:,} | {pct(c['share'])} | {pct(c['avg_prob'])} | "
+                f"{pct(c['hit3'])} | {pct(c['roi3'])} | {pct(c['hit1'])} | {pct(c['roi1'])} | {pct(c['hit5'])} | {pct(c['roi5'])} |"
+                for c in conf]
+    return out
+
+
 # ------------------------------------------------------------ 学習
 def load_dataset() -> pd.DataFrame:
     df = pd.read_parquet(ROOT / "data" / "races.parquet")
@@ -101,6 +198,8 @@ def _race_dicts(df: pd.DataFrame, p: np.ndarray) -> list[dict]:
         out.append({
             "race_id": rid, "p": dict(zip(g["boat"], g["_p"])), "tri": tri_t,
             "pay_tri": g["pay_tri"].iloc[0], "pay_win": g["pay_win"].iloc[0],
+            "trio": g["trio"].iloc[0] if "trio" in g else None,
+            "pay_trio": g["pay_trio"].iloc[0] if "pay_trio" in g else None,
             "win_boat": int(g.loc[g["rank"] == 1, "boat"].iloc[0]),
         })
     return out
@@ -117,8 +216,10 @@ def backtest(df: pd.DataFrame, p: np.ndarray, lam: float) -> dict:
     # 3連単：上位1点・上位5点
     tri_hit1 = tri_ret1 = tri_hit5 = tri_ret5 = 0
     buckets = {}
+    trio_all = TrioScore()
     for r in races:
         tri = trifecta_probs(r["p"], lam)
+        trio_all.add(tri, r["trio"], r["pay_trio"])
         ranked = sorted(tri, key=tri.get, reverse=True)
         pay = r["pay_tri"] if pd.notna(r["pay_tri"]) else 0
         if r["tri"] == ranked[0]:
@@ -161,7 +262,7 @@ def backtest(df: pd.DataFrame, p: np.ndarray, lam: float) -> dict:
         "tri_top1_hit_rate": tri_hit1 / n, "tri_top1_roi": tri_ret1 / (100 * n),
         "tri_top5_hit_rate": tri_hit5 / n, "tri_top5_roi": tri_ret5 / (500 * n),
         "logloss": ll, "logloss_lane_only": ll_base, "lambda": lam,
-        "by_confidence": conf,
+        "by_confidence": conf, "trio": trio_all.result(), "trio_conf": trio_all.conf_result(),
     }
 
 
@@ -184,6 +285,7 @@ def report_md(name: str, bt: dict) -> str:
             f"| {int(c['min_prob'] * 100)}%以上 | {c['races']:,} | {pct(c['share'])} | {pct(c['avg_prob'])} | "
             f"{pct(c['hit_rate'])} | {pct(c['win_roi'])} | {pct(c['tri_hit_rate'])} | {pct(c['tri_roi'])} |"
         )
+    lines += trio_md(bt["trio"], bt["trio_conf"])
     return "\n".join(lines) + "\n"
 
 

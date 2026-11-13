@@ -151,6 +151,8 @@ def parse_race_html(html: str, race_id: str) -> tuple[dict, list[dict]]:
                 race["pay_win"] = pays[0]
             elif kind == "三連単" and pays:
                 race["tri"], race["pay_tri"] = combos[0].replace(" ", ""), pays[0]
+            elif kind == "三連複" and pays:
+                race["trio"], race["pay_trio"] = combos[0].replace(" ", ""), pays[0]
             elif kind == "馬連" and pays:
                 race["quin"], race["pay_quin"] = combos[0].replace(" ", ""), pays[0]
     race["heads"] = len(rows)
