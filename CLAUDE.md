@@ -41,7 +41,7 @@ pip install -q -r requirements.txt
 ## 自動の学び直し
 
 毎週月曜 4:43（日本時間）に、スケジュール実行のClaudeが `python -m boatrace.update` と
-`python -m keiba.update --backfill 120` を実行し、`data/store/`・`models/`・`reports/` を main に push する。
+`python -m keiba.update --backfill 240` を実行し、`data/store/`・`models/`・`reports/` を main に push する。
 表にしたデータは `data/store/` に月ごとに保存してあり、更新では続きの日だけを取得する。
 
 ## 持ち主から頼まれたときだけやること
