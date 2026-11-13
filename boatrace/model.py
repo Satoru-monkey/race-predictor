@@ -10,7 +10,8 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from .features import FEATURES_EX, FEATURES_NO_EX, add_basic, add_history, history_tables
+from .features import (FEATURES_EX, FEATURES_NO_EX, add_basic, add_form, add_history,
+                       form_tables, history_tables)
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
@@ -155,6 +156,7 @@ def trio_md(rows: list[dict], conf: list[dict] | None = None) -> list[str]:
 def load_dataset() -> pd.DataFrame:
     df = pd.read_parquet(ROOT / "data" / "races.parquet")
     df = add_history(df)
+    df = add_form(df)
     df = add_basic(df)
     df["y"] = (df["rank"] == 1).astype(int)
     return df
@@ -292,8 +294,11 @@ def report_md(name: str, bt: dict) -> str:
 def save_history_tables():
     """予想に必要な集計表（選手・枠・場ごとの成績）だけを models/ に保存する。
     これがあれば、過去データを持っていないPCでも予想できる。"""
-    hist = pd.read_parquet(ROOT / "data" / "races.parquet", columns=["toban", "boat", "jcd", "rank", "st"])
-    for name, t in history_tables(hist).items():
+    hist = pd.read_parquet(ROOT / "data" / "races.parquet",
+                           columns=["race_id", "date", "rno", "toban", "boat", "jcd", "rank", "st",
+                                    "flag", "course", "motor_no", "ex_time"])
+    tables = history_tables(hist) | form_tables(hist)
+    for name, t in tables.items():
         t.to_parquet(MODELS / f"boat_hist_{name}.parquet", index=False)
 
 
@@ -311,7 +316,9 @@ def main(test_days: int = 60, valid_days: int = 30):
     summary = {}
     md = ["# 答え合わせ（バックテスト）の結果", "",
           "学習に使っていない直近の期間で、予想がどれくらい当たったかを確かめた結果です。",
-          "回収率は払い戻し÷購入額です。100%を超えると黒字ですが、超えなくても普通です。", ""]
+          "回収率は払い戻し÷購入額です。100%を超えると黒字ですが、超えなくても普通です。",
+          "展示タイムありモデルは、答え合わせでは本番の実際の進入コースを使っています。当日はスタート展示の進入で予想するので、",
+          "本番で並びが変わったレースの分だけ、実際は少し下がります（全員枠なりと仮定した場合、3連複上位3点の的中率は約1ポイント下がりました）。", ""]
     for name, feats, label in (("ex", FEATURES_EX, "展示タイムありモデル（直前情報が出たあと）"),
                                ("noex", FEATURES_NO_EX, "展示タイムなしモデル（番組表だけ）")):
         m = fit(tr, feats, va)

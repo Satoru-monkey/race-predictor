@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from . import live
-from .features import add_basic, apply_history, history_tables
+from .features import add_basic, apply_form, apply_history, form_tables, history_tables
 from .model import TRIO_PLANS, top_n_probs, trifecta_probs, trio_plan_combos, trio_probs
 from .parse import VENUES
 
@@ -25,6 +25,11 @@ LABELS = {
     "h_win": "最近の1着率", "h_top3": "最近の3着内率", "h_lane_win": "この枠での1着率",
     "h_lane_top3": "この枠での3着内率", "h_lane_n": "この枠での出走数", "v_lane_win": "この場・この枠の1着率",
     "ex_time": "展示タイム", "ex_diff": "展示タイム（最速との差）", "ex_rank": "展示タイム順位",
+    "f_rank10": "直近10走の平均着順", "f_st_std20": "スタートのばらつき", "f_fly180": "直近180日のフライング回数",
+    "m_top3_20": "モーターの直近20走の3着内率", "m_ex_rel20": "モーターの直近の展示タイム", "m_n20": "モーターの直近の出走数",
+    "f_rank10_rk": "直近10走の平均着順（レース内の順位）", "m_top3_20_rk": "モーターの直近の調子（レース内の順位）",
+    "m_ex_rel20_rk": "モーターの直近の展示タイム（レース内の順位）", "course_in": "進入コース",
+    "front": "前付け（枠より内に入ったか）", "h_course_win": "この進入コースでの1着率", "h_course_top3": "この進入コースでの3着内率",
 }
 for _c in ("nat_win", "nat_2", "loc_win", "motor_2", "boat_2", "class", "series_avg"):
     LABELS[f"{_c}_rel"] = LABELS[_c] + "（レース内の平均との差）"
@@ -48,12 +53,11 @@ def booster(name: str) -> lgb.Booster:
 @lru_cache(maxsize=1)
 def hist_tables() -> dict:
     """選手・枠・場ごとの成績表。学習時に保存した models/ の集計表を使う。"""
-    names = ("racer", "lane", "venue")
+    names = ("racer", "lane", "venue", "form", "motor", "course")
     if all((MODELS / f"boat_hist_{n}.parquet").exists() for n in names):
         return {n: pd.read_parquet(MODELS / f"boat_hist_{n}.parquet") for n in names}
-    hist = pd.read_parquet(ROOT / "data" / "races.parquet",
-                           columns=["toban", "boat", "jcd", "rank", "st"])
-    return history_tables(hist)
+    hist = pd.read_parquet(ROOT / "data" / "races.parquet")
+    return history_tables(hist) | form_tables(hist)
 
 
 def _features(prog: pd.DataFrame, before: dict | None = None) -> pd.DataFrame:
@@ -63,7 +67,10 @@ def _features(prog: pd.DataFrame, before: dict | None = None) -> pd.DataFrame:
         df["wind"] = w.get("wind")
         df["wave"] = w.get("wave")
         df["ex_time"] = df["boat"].map(lambda b: before["boats"].get(b, {}).get("ex_time"))
+        df["course_in"] = df["boat"].map(lambda b: before["boats"].get(b, {}).get("course_ex"))
+        df["course_in"] = df["course_in"].fillna(df["boat"])  # スタート展示の進入が取れないときは枠なりとみなす
     df = apply_history(df, hist_tables())
+    df = apply_form(df, hist_tables())
     return add_basic(df)
 
 

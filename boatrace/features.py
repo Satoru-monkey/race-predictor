@@ -18,9 +18,14 @@ HIST_COLS = [
     "v_lane_win",
 ]
 EX_COLS = ["ex_time", "ex_diff", "ex_rank"]
+# 直近の調子（選手・モーター）とフライング
+FORM_COLS = ["f_rank10", "f_st_std20", "f_fly180", "m_top3_20", "m_ex_rel20", "m_n20",
+             "f_rank10_rk", "m_top3_20_rk", "m_ex_rel20_rk"]
+# 進入コース（学習時は実際の進入、当日はスタート展示の進入）
+COURSE_COLS = ["course_in", "front", "h_course_win", "h_course_top3"]
 
-FEATURES_NO_EX = BASE_COLS + [f"{c}_rel" for c in REL_SRC] + [f"{c}_rk" for c in REL_SRC] + HIST_COLS
-FEATURES_EX = FEATURES_NO_EX + EX_COLS
+FEATURES_NO_EX = BASE_COLS + [f"{c}_rel" for c in REL_SRC] + [f"{c}_rk" for c in REL_SRC] + HIST_COLS + FORM_COLS
+FEATURES_EX = FEATURES_NO_EX + EX_COLS + COURSE_COLS
 
 
 def _smooth(hit, n, prior, k=5.0):
@@ -46,6 +51,13 @@ def add_basic(df: pd.DataFrame) -> pd.DataFrame:
     df["ex_diff"] = df["ex_time"] - g["ex_time"].transform("min")
     df["ex_rank"] = g["ex_time"].rank(method="min")
     df["st_ex_rank"] = g["st_ex"].rank(method="min")
+    for c in ("f_rank10", "m_top3_20", "m_ex_rel20", "course_in"):
+        if c not in df:
+            df[c] = np.nan
+    df["f_rank10_rk"] = g["f_rank10"].rank(method="min")
+    df["m_top3_20_rk"] = g["m_top3_20"].rank(ascending=False, method="min")
+    df["m_ex_rel20_rk"] = g["m_ex_rel20"].rank(method="min")
+    df["front"] = df["boat"] - df["course_in"]  # プラスなら枠より内のコースに入った（前付け）
     return df
 
 
@@ -93,6 +105,99 @@ def add_history(df: pd.DataFrame) -> pd.DataFrame:
     v["v_lane_win"] = _smooth(v["_win"], v["_vn"], v["boat"].map(lane_prior["_win"]), k=50)
     df = df.merge(v[["jcd", "boat", "date", "v_lane_win"]], on=["jcd", "boat", "date"], how="left")
     return df.drop(columns=["_win", "_top3", "_st", "_st_n"])
+
+
+# ------------------------------------------------------------ 直近の調子・フライング・コース別（学習用）
+def _ex_rel(df: pd.DataFrame) -> pd.Series:
+    """展示タイムがそのレースの平均よりどれだけ速いか（マイナスほど速い）。"""
+    return df["ex_time"] - df.groupby("race_id")["ex_time"].transform("mean")
+
+
+def add_form(df: pd.DataFrame) -> pd.DataFrame:
+    """選手の直近10走・スタートのばらつき・直近180日のフライング、モーターの直近20走、
+    選手のコース別成績を付ける。どれも「その日より前」のレースだけで計算する。"""
+    df = df.copy()
+    df["_rank"] = df["rank"].clip(upper=6.5)
+    df["_top3"] = (df["rank"] <= 3).astype(float)
+    df["_win"] = (df["rank"] == 1).astype(float)
+    df["_fly"] = df["flag"].astype(str).str.startswith("F").astype(float)
+    df["_exrel"] = _ex_rel(df)
+    df = df.sort_values(["date", "jcd", "rno", "boat"]).reset_index(drop=True)
+
+    def recent(keys, col, n, func, minp):
+        g = df.groupby(keys, sort=False)[col]
+        v = g.transform(lambda x: getattr(x.shift(1).rolling(n, min_periods=minp), func)())
+        # 同じ日のうちに走った分は使わない（当日の予想と条件をそろえる）
+        return v.groupby([df[k] for k in keys] + [df["date"]]).transform("first")
+
+    df["f_rank10"] = recent(["toban"], "_rank", 10, "mean", 3)
+    df["f_st_std20"] = recent(["toban"], "st", 20, "std", 5)
+    df["m_top3_20"] = recent(["jcd", "motor_no"], "_top3", 20, "mean", 3)
+    df["m_ex_rel20"] = recent(["jcd", "motor_no"], "_exrel", 20, "mean", 3)
+    df["m_n20"] = df.groupby(["jcd", "motor_no"]).cumcount().clip(upper=20)
+    df["m_n20"] = df["m_n20"].groupby([df["jcd"], df["motor_no"], df["date"]]).transform("first")
+
+    # 直近180日のフライング回数（前日まで）
+    daily = df.groupby(["toban", "date"])["_fly"].sum().reset_index()
+    daily["_d"] = pd.to_datetime(daily["date"])
+    daily = daily.sort_values(["toban", "_d"]).set_index("_d")
+    daily["f_fly180"] = (daily.groupby("toban")["_fly"]
+                         .rolling("180D", closed="left").sum().reset_index(level=0, drop=True))
+    df = df.merge(daily.reset_index()[["toban", "date", "f_fly180"]], on=["toban", "date"], how="left")
+    df["f_fly180"] = df["f_fly180"].fillna(0)
+
+    # コース別成績（前日まで）
+    df["course_in"] = df["course"]
+    cprior = df.groupby("course")[["_win", "_top3"]].mean()
+    d = df.dropna(subset=["course"]).groupby(["toban", "course", "date"])[["_win", "_top3"]].agg(["sum", "count"])
+    d.columns = ["w", "n", "t3", "_"]
+    d = d.drop(columns="_").reset_index().sort_values(["toban", "course", "date"])
+    cs = d.groupby(["toban", "course"])[["w", "n", "t3"]].cumsum() - d[["w", "n", "t3"]]
+    d["h_course_win"] = _smooth(cs["w"], cs["n"], d["course"].map(cprior["_win"]))
+    d["h_course_top3"] = _smooth(cs["t3"], cs["n"], d["course"].map(cprior["_top3"]))
+    df = df.merge(d[["toban", "course", "date", "h_course_win", "h_course_top3"]],
+                  on=["toban", "course", "date"], how="left")
+    return df.drop(columns=["_rank", "_top3", "_win", "_fly", "_exrel"])
+
+
+def form_tables(hist: pd.DataFrame) -> dict:
+    """当日の予想用：選手・モーターの直近の調子と、コース別成績の最新の表。"""
+    h = hist.sort_values(["date", "jcd", "rno", "boat"]).copy()
+    h["_rank"] = h["rank"].clip(upper=6.5)
+    h["_top3"] = (h["rank"] <= 3).astype(float)
+    h["_win"] = (h["rank"] == 1).astype(float)
+    h["_fly"] = h["flag"].astype(str).str.startswith("F").astype(float)
+    h["_exrel"] = _ex_rel(h)
+    last = pd.to_datetime(h["date"].max())
+    since = (last - pd.Timedelta(days=179)).strftime("%Y-%m-%d")
+    g = h.groupby("toban")
+    racer = pd.DataFrame({
+        "f_rank10": g["_rank"].apply(lambda x: x.tail(10).mean() if len(x) >= 3 else np.nan),
+        "f_st_std20": g["st"].apply(lambda x: x.dropna().tail(20).std() if x.notna().sum() >= 5 else np.nan),
+        "f_fly180": h[h["date"] >= since].groupby("toban")["_fly"].sum(),
+    }).reset_index()
+    racer["f_fly180"] = racer["f_fly180"].fillna(0)
+    gm = h.groupby(["jcd", "motor_no"])
+    motor = pd.DataFrame({
+        "m_top3_20": gm["_top3"].apply(lambda x: x.tail(20).mean() if len(x) >= 3 else np.nan),
+        "m_ex_rel20": gm["_exrel"].apply(lambda x: x.dropna().tail(20).mean() if x.notna().sum() >= 3 else np.nan),
+        "m_n20": gm.size().clip(upper=20),
+    }).reset_index()
+    cprior = h.groupby("course")[["_win", "_top3"]].mean()
+    c = h.dropna(subset=["course"]).groupby(["toban", "course"]).agg(
+        w=("_win", "sum"), t3=("_top3", "sum"), n=("_win", "size")).reset_index()
+    c["h_course_win"] = _smooth(c["w"], c["n"], c["course"].map(cprior["_win"]))
+    c["h_course_top3"] = _smooth(c["t3"], c["n"], c["course"].map(cprior["_top3"]))
+    return {"form": racer, "motor": motor,
+            "course": c[["toban", "course", "h_course_win", "h_course_top3"]]}
+
+
+def apply_form(df: pd.DataFrame, t: dict) -> pd.DataFrame:
+    df = df.merge(t["form"], on="toban", how="left")
+    df = df.merge(t["motor"], on=["jcd", "motor_no"], how="left")
+    if "course_in" in df and df["course_in"].notna().any():
+        df = df.merge(t["course"].rename(columns={"course": "course_in"}), on=["toban", "course_in"], how="left")
+    return df
 
 
 # ------------------------------------------------------------ 過去成績（当日の予想用）
