@@ -7,8 +7,11 @@ Claude がツールを動かし、結果を日本語で答えてください。
 ## 最初にやること（会話ごとに1回）
 
 ```bash
-pip install -q -r requirements.txt
+pip install -q --ignore-installed blinker -r requirements.txt
 ```
+
+- `--ignore-installed blinker` は消さない。クラウドの環境では、OS が入れた blinker を pip が消せずにインストール全体が止まり、lightgbm などが入らないため
+- インストールの後に `python -c "import lightgbm"` でエラーが出ないことを確かめてから、予想のコマンドを動かす
 
 学習済みモデルと成績の集計表は `models/` に入っているので、過去データのダウンロードや学習は不要です。
 
