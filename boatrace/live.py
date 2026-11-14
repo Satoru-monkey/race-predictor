@@ -100,7 +100,12 @@ def beforeinfo(jcd: str, rno: int, day: dt.date) -> dict:
     if w:
         for u in w.select(".weather1_bodyUnit"):
             cls, txt = " ".join(u.get("class", [])), u.get_text(" ", strip=True)
-            if "is-wind" in cls and "Direction" not in cls:
+            if "is-windDirection" in cls:
+                img = u.select_one("[class*=is-wind]")
+                m = re.search(r"is-wind(\d+)", " ".join(img.get("class", []))) if img else None
+                if m and 1 <= int(m.group(1)) <= 16:
+                    weather["wind_rel16"] = int(m.group(1)) - 1  # スタンドから見た風向き（0〜15）
+            elif "is-wind" in cls:
                 weather["wind"] = _num(txt)
             elif "is-wave" in cls:
                 weather["wave"] = _num(txt)
@@ -108,6 +113,31 @@ def beforeinfo(jcd: str, rno: int, day: dt.date) -> dict:
                 weather["weather"] = txt
     ready = bool(boats) and all(b.get("ex_time") for b in boats.values() if "ex_time" in b)
     return {"boats": boats, "weather": weather, "ready": ready}
+
+
+# ------------------------------------------------------------ 当日の結果
+def day_results(jcd: str, day: dt.date) -> pd.DataFrame:
+    """その場のその日に終わったレースの結果を「1行＝1艇」（date, jcd, rno, boat, win, top3）で返す。
+    公式サイトの結果一覧（1場1ページ）の3連単の組み合わせから作る。"""
+    s = _soup(f"{SITE}/resultlist?jcd={jcd}&hd={day:%Y%m%d}", ttl=120)
+    rows = []
+    for tbl in s.select("table"):
+        if "3連勝単式" not in tbl.get_text():
+            continue
+        for tr in tbl.select("tr"):
+            cells = [c.get_text(" ", strip=True) for c in tr.select("th,td")]
+            if len(cells) < 2:
+                continue
+            m = re.fullmatch(r"(\d{1,2})R", cells[0])
+            combo = re.findall(r"[1-6]", cells[1])
+            if not m or len(combo) != 3:
+                continue
+            order = [int(x) for x in combo]
+            for b in range(1, 7):
+                rows.append({"date": day.isoformat(), "jcd": jcd, "rno": int(m.group(1)), "boat": b,
+                             "win": float(b == order[0]), "top3": float(b in order)})
+        break
+    return pd.DataFrame(rows, columns=["date", "jcd", "rno", "boat", "win", "top3"])
 
 
 # ------------------------------------------------------------ オッズ

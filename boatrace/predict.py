@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 
 from . import live
-from .features import add_basic, apply_form, apply_history, form_tables, history_tables
+from .features import (DAY_COLS, WIND_COLS, add_basic, add_day_trend, add_wind, apply_form, apply_history,
+                       form_tables, history_tables)
 from .model import TRIO_PLANS, top_n_probs, trifecta_probs, trio_plan_combos, trio_probs
 from .parse import VENUES
 
@@ -30,6 +31,9 @@ LABELS = {
     "f_rank10_rk": "直近10走の平均着順（レース内の順位）", "m_top3_20_rk": "モーターの直近の調子（レース内の順位）",
     "m_ex_rel20_rk": "モーターの直近の展示タイム（レース内の順位）", "course_in": "進入コース",
     "front": "前付け（枠より内に入ったか）", "h_course_win": "この進入コースでの1着率", "h_course_top3": "この進入コースでの3着内率",
+    "wind_rx": "風向き（横の成分）", "wind_ry": "風向き（縦の成分）",
+    "d_n": "今日この場で終わったレース数", "d_lane_win": "今日この場・この枠の1着率", "d_lane_top3": "今日この場・この枠の3着内率",
+    "d_b1_win": "今日この場の1号艇の1着率", "d_lane_dev": "今日この場・この枠の1着率（いつもとの差）",
 }
 for _c in ("nat_win", "nat_2", "loc_win", "motor_2", "boat_2", "class", "series_avg"):
     LABELS[f"{_c}_rel"] = LABELS[_c] + "（レース内の平均との差）"
@@ -38,6 +42,10 @@ for _c in ("nat_win", "nat_2", "loc_win", "motor_2", "boat_2", "class", "series_
 
 def label(f: str) -> str:
     return LABELS.get(f, f)
+
+
+def _today() -> dt.date:
+    return dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()
 
 
 @lru_cache(maxsize=1)
@@ -60,18 +68,39 @@ def hist_tables() -> dict:
     return history_tables(hist) | form_tables(hist)
 
 
-def _features(prog: pd.DataFrame, before: dict | None = None) -> pd.DataFrame:
+def uses(name: str, cols: list[str]) -> bool:
+    return any(c in meta()[name]["features"] for c in cols)
+
+
+def day_results(day: dt.date, jcds, errors: list | None = None) -> pd.DataFrame:
+    """当日の場の流れ用：その場で終わったレースの結果を公式サイトの結果一覧から取る（1場1回）。"""
+    out = []
+    for j in sorted(set(jcds)):
+        try:
+            out.append(live.day_results(j, day))
+        except Exception as e:
+            if errors is not None:
+                errors.append(f"{VENUES.get(j, j)}の今日の結果を取得できませんでした（{e}）")
+    out = [o for o in out if not o.empty]
+    return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
+
+
+def _features(prog: pd.DataFrame, before: dict | None = None, res: pd.DataFrame | None = None) -> pd.DataFrame:
     df = prog.copy()
+    df["wind_rel16"] = np.nan
     if before:
         w = before.get("weather", {})
         df["wind"] = w.get("wind")
         df["wave"] = w.get("wave")
+        df["wind_rel16"] = w.get("wind_rel16")
         df["ex_time"] = df["boat"].map(lambda b: before["boats"].get(b, {}).get("ex_time"))
         df["course_in"] = df["boat"].map(lambda b: before["boats"].get(b, {}).get("course_ex"))
         df["course_in"] = df["course_in"].fillna(df["boat"])  # スタート展示の進入が取れないときは枠なりとみなす
     df = apply_history(df, hist_tables())
     df = apply_form(df, hist_tables())
-    return add_basic(df)
+    df = add_basic(df)
+    df = add_wind(df)
+    return add_day_trend(df, res)
 
 
 def _probs(df: pd.DataFrame, name: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
@@ -90,7 +119,13 @@ def day_overview(day: dt.date) -> list[dict]:
     prog = live.program(day)
     if prog.empty:
         return []
-    df = _features(prog)
+    res = None
+    if uses("noex", DAY_COLS) and day == _today():
+        # 締切を過ぎたレースがある場だけ、結果一覧を取りにいく
+        now = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).strftime("%H:%M")
+        started = prog[prog["deadline"].fillna("99:99").str.zfill(5) < now]["jcd"]
+        res = day_results(day, started) if len(started) else None
+    df = _features(prog, res=res)
     p, _, _ = _probs(df, "noex")
     df["p"] = p
     lam = meta()["noex"]["lambda"]
@@ -123,7 +158,8 @@ def predict_race(day: dt.date, jcd: str, rno: int, use_live: bool = True) -> dic
         except Exception as e:  # 取得できなくても番組表だけで予想する
             errors.append(f"直前情報を取得できませんでした（{e}）")
     name = "ex" if before and before.get("ready") else "noex"
-    df = _features(prog, before)
+    res = day_results(day, [jcd], errors) if use_live and uses(name, DAY_COLS) else None
+    df = _features(prog, before, res)
     p, contrib, feats = _probs(df, name)
     lam = meta()[name]["lambda"]
     pw = dict(zip(df["boat"].astype(int), p))

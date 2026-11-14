@@ -24,8 +24,82 @@ FORM_COLS = ["f_rank10", "f_st_std20", "f_fly180", "m_top3_20", "m_ex_rel20", "m
 # 進入コース（学習時は実際の進入、当日はスタート展示の進入）
 COURSE_COLS = ["course_in", "front", "h_course_win", "h_course_top3"]
 
+# 風向き（スタンドから見た向きに直したもの）
+WIND_COLS = ["wind_rx", "wind_ry"]
+# 当日の場の流れ（同じ日・同じ場で、このレースより前に終わったレースの結果）
+DAY_COLS = ["d_n", "d_lane_win", "d_lane_top3", "d_b1_win", "d_lane_dev"]
+
 FEATURES_NO_EX = BASE_COLS + [f"{c}_rel" for c in REL_SRC] + [f"{c}_rk" for c in REL_SRC] + HIST_COLS + FORM_COLS
 FEATURES_EX = FEATURES_NO_EX + EX_COLS + COURSE_COLS
+
+# 公式サイトの風向きの絵は、場ごとの向き（is-directionN）だけ回してある。
+# 成績ファイルの方角（北・北東…）と照らし合わせて確かめた値。
+VENUE_DIR = {
+    "01": 14, "02": 16, "03": 4, "04": 5, "05": 9, "06": 13, "07": 11, "08": 9,
+    "09": 8, "10": 14, "11": 13, "12": 13, "13": 10, "14": 15, "15": 7, "16": 13,
+    "17": 11, "18": 7, "19": 11, "20": 10, "21": 1, "22": 2, "23": 12, "24": 3,
+}
+COMPASS = {"北": 0, "北北東": 1, "北東": 2, "東北東": 3, "東": 4, "東南東": 5, "南東": 6, "南南東": 7,
+           "南": 8, "南南西": 9, "南西": 10, "西南西": 11, "西": 12, "西北西": 13, "北西": 14, "北北西": 15}
+
+
+def wind_rel16(jcd: str, compass: str | None):
+    """方角（北・北東…）を、公式サイトの絵と同じ「スタンドから見た向き」（0〜15）に直す。"""
+    if compass not in COMPASS or jcd not in VENUE_DIR:
+        return None
+    return (COMPASS[compass] + VENUE_DIR[jcd] - 9) % 16
+
+
+def add_wind(df: pd.DataFrame) -> pd.DataFrame:
+    """風速と、スタンドから見た風向き（wind_rel16。無風はNaN）から、風を2つの向きの成分に分ける。"""
+    df = df.copy()
+    if "wind_rel16" not in df:
+        df["wind_rel16"] = [wind_rel16(j, w) for j, w in zip(df["jcd"], df.get("wind_dir", pd.Series(index=df.index)))]
+    ang = df["wind_rel16"].astype(float) * (2 * np.pi / 16)
+    wind = df["wind"].astype(float)
+    calm = wind.fillna(1) == 0
+    df["wind_rx"] = np.where(calm, 0.0, wind * np.sin(ang))
+    df["wind_ry"] = np.where(calm, 0.0, wind * np.cos(ang))
+    return df
+
+
+def results_long(df: pd.DataFrame) -> pd.DataFrame:
+    """レースの結果を「1行＝1艇」（date, jcd, rno, boat, win, top3）にする。学習用。"""
+    out = df[["date", "jcd", "rno", "boat"]].copy()
+    out["win"] = (df["rank"] == 1).astype(float)
+    out["top3"] = (df["rank"] <= 3).astype(float)
+    return out
+
+
+def add_day_trend(df: pd.DataFrame, res: pd.DataFrame) -> pd.DataFrame:
+    """同じ日・同じ場で、このレースより前に結果が出たレースから、枠ごとの1着率・3着内率を付ける。
+    res は results_long の形（当日の予想では、公式サイトの結果一覧から作る）。"""
+    df = df.copy()
+    key = df[["date", "jcd", "rno"]].drop_duplicates()
+    if res is None or res.empty:
+        for c in DAY_COLS:
+            df[c] = np.nan
+        df["d_n"] = 0.0
+        return df
+    races = res[["date", "jcd", "rno"]].drop_duplicates()
+    m = key.merge(races.rename(columns={"rno": "r2"}), on=["date", "jcd"])
+    m = m[m["r2"] < m["rno"]]
+    n = m.groupby(["date", "jcd", "rno"]).size().rename("d_n")
+    lane = key.merge(res.rename(columns={"rno": "r2"}), on=["date", "jcd"])
+    lane = lane[lane["r2"] < lane["rno"]]
+    agg = lane.groupby(["date", "jcd", "rno", "boat"])[["win", "top3"]].sum().reset_index()
+    b1 = agg[agg["boat"] == 1][["date", "jcd", "rno", "win"]].rename(columns={"win": "_b1"})
+    df = df.merge(n.reset_index(), on=["date", "jcd", "rno"], how="left")
+    df = df.merge(agg.rename(columns={"win": "_w", "top3": "_t"}), on=["date", "jcd", "rno", "boat"], how="left")
+    df = df.merge(b1, on=["date", "jcd", "rno"], how="left")
+    df["d_n"] = df["d_n"].fillna(0.0)
+    has = df["d_n"] > 0
+    nn = df["d_n"].where(has)
+    df["d_lane_win"] = df["_w"].fillna(0) / nn
+    df["d_lane_top3"] = df["_t"].fillna(0) / nn
+    df["d_b1_win"] = df["_b1"].fillna(0) / nn
+    df["d_lane_dev"] = df["d_lane_win"] - df["v_lane_win"] if "v_lane_win" in df else np.nan
+    return df.drop(columns=["_w", "_t", "_b1"])
 
 
 def _smooth(hit, n, prior, k=5.0):

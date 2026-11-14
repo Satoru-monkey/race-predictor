@@ -10,8 +10,8 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from .features import (FEATURES_EX, FEATURES_NO_EX, add_basic, add_form, add_history,
-                       form_tables, history_tables)
+from .features import (FEATURES_EX, FEATURES_NO_EX, add_basic, add_day_trend, add_form, add_history,
+                       add_wind, form_tables, history_tables, results_long)
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
@@ -158,6 +158,8 @@ def load_dataset() -> pd.DataFrame:
     df = add_history(df)
     df = add_form(df)
     df = add_basic(df)
+    df = add_wind(df)
+    df = add_day_trend(df, results_long(df))
     df["y"] = (df["rank"] == 1).astype(int)
     return df
 
