@@ -17,7 +17,7 @@ import pandas as pd
 
 from boatrace.model import TrioScore, trifecta_probs, trio_md
 
-from .features import FEATURES, add_history, add_relative, latest_tables
+from .features import FEATURES, FEATURES_MKT, add_history, add_relative, latest_tables
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
@@ -185,15 +185,28 @@ def main(test_days: int = 90, valid_days: int = 60):
 
     pm_te = norm(te, m.predict(te[FEATURES], num_iteration=best))
     pk_te = market_prob(te)
+
+    # オッズも材料にするモデル（市場の見立ての偏りを学ぶ）
+    m2 = lgb.train(PARAMS, lgb.Dataset(tr[FEATURES_MKT], tr["y"]), 3000,
+                   valid_sets=[lgb.Dataset(va[FEATURES_MKT], va["y"])],
+                   callbacks=[lgb.early_stopping(100, verbose=False)])
+    best2 = m2.best_iteration
+    lam_mkt = tune_lambda(va, norm(va, m2.predict(va[FEATURES_MKT], num_iteration=best2)))
+    p2_te = norm(te, m2.predict(te[FEATURES_MKT], num_iteration=best2))
+
     bt = {
+        "mkt": backtest(te, p2_te, lam_mkt),
         "model": backtest(te, pm_te, lam_model),
         "market": backtest(te, pk_te, lam_blend),
         "blend": backtest(te, blend(te, pm_te, pk_te, a, b), lam_blend),
     }
+    # オッズ込みモデルが人気順より確率を正確に出せたときだけ、当日の予想で使う
+    use_mkt = bt["mkt"]["logloss"] < bt["market"]["logloss"]
     md = ["# 競馬 答え合わせ（バックテスト）", "",
           "学習に使っていない直近の期間での結果です。オッズは確定オッズを使っているため、"
           "締切前のオッズで買う実際よりも少し良く出ます。", ""]
-    for k, label in (("blend", "能力モデル＋オッズの合成（オッズ発表後の予想）"),
+    for k, label in (("mkt", "オッズ込みモデル（オッズの偏りも学んだ予想）"),
+                     ("blend", "能力モデル＋オッズの合成"),
                      ("model", "能力モデルだけ（オッズを使わない予想）"),
                      ("market", "比較用：オッズだけ（人気順）")):
         md.append(report_md(label, bt[k]))
@@ -203,14 +216,19 @@ def main(test_days: int = 90, valid_days: int = 60):
     MODELS.mkdir(exist_ok=True)
     REPORTS.mkdir(exist_ok=True)
     full.save_model(str(MODELS / "keiba.txt"))
+    full2 = lgb.train(PARAMS, lgb.Dataset(df[FEATURES_MKT], df["y"]), max(best2, 50))
+    full2.save_model(str(MODELS / "keiba_mkt.txt"))
+    imp2 = pd.Series(full2.feature_importance("gain"), index=FEATURES_MKT).sort_values(ascending=False)
     imp = pd.Series(full.feature_importance("gain"), index=FEATURES).sort_values(ascending=False)
     meta = {"backtest": bt, "rounds": best, "blend": {"a": a, "b": b},
             "lambda_model": lam_model, "lambda_blend": lam_blend, "features": FEATURES,
-            "importance": (imp / imp.sum()).round(4).head(15).to_dict(), "trained_until": df["date"].max()}
+            "importance": (imp / imp.sum()).round(4).head(15).to_dict(), "trained_until": df["date"].max(),
+            "features_mkt": FEATURES_MKT, "lambda_mkt": lam_mkt, "rounds_mkt": best2, "use_mkt": bool(use_mkt),
+            "importance_mkt": (imp2 / imp2.sum()).round(4).head(15).to_dict()}
     (MODELS / "keiba_meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1, default=float))
     (REPORTS / "keiba_backtest.md").write_text("\n".join(md))
     save_history_tables()
-    print("合成の比率", a, b, "／ reports/keiba_backtest.md を保存しました")
+    print("合成の比率", a, b, "／オッズ込みモデルを使う:", use_mkt, "／ reports/keiba_backtest.md を保存しました")
 
 
 if __name__ == "__main__":

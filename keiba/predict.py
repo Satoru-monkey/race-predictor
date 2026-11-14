@@ -29,8 +29,14 @@ LABELS = {
     "h_dist_diff": "前走からの距離変化", "h_surface_same_rank_r": "同じ芝・ダートでの着順", "h_win_rate": "勝率",
     "h_top3_rate": "3着内率", "j_win": "騎手の勝率", "j_top3": "騎手の3着内率", "j_n": "騎手の騎乗数",
     "t_win": "調教師の勝率", "t_top3": "調教師の3着内率",
+    "h_last_fig": "前走のスピード指数", "h_best_fig3": "近3走の最高スピード指数", "h_avg_fig3": "近3走のスピード指数",
+    "h_last_l3fig": "前走の上がりの速さ", "h_avg_l3fig3": "近3走の上がりの速さ",
+    "h_surface_fig": "同じ芝・ダートでのスピード指数", "h_dist_rank_r": "同じくらいの距離での着順",
+    "h_dist_n": "同じくらいの距離の出走数", "h_venue_rank_r": "この競馬場での着順",
+    "h_max_class3": "近3走の最高クラス", "h_last_class_perf": "前走のクラスと着順",
 }
-for _c in ("h_avg_rank_r3", "h_avg_margin3", "h_avg_l3f_r3", "j_win", "kinryo", "h_last_pop"):
+for _c in ("h_avg_rank_r3", "h_avg_margin3", "h_avg_l3f_r3", "j_win", "kinryo", "h_last_pop",
+           "h_best_fig3", "h_avg_fig3", "h_avg_l3fig3", "h_surface_fig"):
     LABELS[f"{_c}_rk"] = LABELS[_c] + "（レース内の順位）"
     LABELS[f"{_c}_rel"] = LABELS[_c] + "（レース内の平均との差）"
 
@@ -51,7 +57,7 @@ def booster():
 
 @lru_cache(maxsize=1)
 def tables():
-    names = ("horse", "surface", "j", "t")
+    names = ("horse", "surface", "dist", "venue", "j", "t")
     if all((MODELS / f"keiba_hist_{n}.parquet").exists() for n in names):
         return {n: pd.read_parquet(MODELS / f"keiba_hist_{n}.parquet") for n in names}
     hist = pd.read_parquet(ROOT / "data" / "keiba" / "races.parquet")
