@@ -53,11 +53,19 @@ def race_path(race_id: str) -> Path:
     return RAW / race_id[:4] / f"{race_id}.html.gz"
 
 
-def fetch_race(race_id: str) -> Path:
+def has_result(html: bytes) -> bool:
+    """成績が載ったページか（結果が出る前は、表のない空のページが返る）。"""
+    return b"race_table_01" in html and b"pay_table_01" in html
+
+
+def fetch_race(race_id: str) -> Path | None:
+    """成績ページを保存する。まだ結果が載っていなければ保存せず None を返す（次回取り直す）。"""
     p = race_path(race_id)
     if p.exists():
         return p
     html = get(f"https://db.netkeiba.com/race/{race_id}/")
+    if not has_result(html):
+        return None
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(gzip.compress(html))
     return p
@@ -100,9 +108,10 @@ def main(argv, skip: set[str] | None = None, deadline: float | None = None, newe
                 return
             try:
                 ids = race_ids(d)
-                for rid in ids:
-                    if not race_path(rid).exists():
-                        fetch_race(rid)
+                missing = [rid for rid in ids if not race_path(rid).exists() and fetch_race(rid) is None]
+                if missing:  # 結果がまだ載っていない日は、取得済みの印を付けない
+                    print(d, f"{len(missing)}レースはまだ結果が載っていません（次回取り直します）", flush=True)
+                    continue
                 done.add(d)
                 index.parent.mkdir(parents=True, exist_ok=True)
                 index.write_text("\n".join(sorted(done)))
