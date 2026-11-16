@@ -12,7 +12,7 @@ import time
 
 from boatrace import store
 
-from . import download, model, parse
+from . import download, model, parse, upset
 
 FIRST_MONTH = "2025-01"
 KEYS = ["race_id", "umaban"]
@@ -46,6 +46,8 @@ def main(argv):
     if "--no-train" not in argv:
         print("学習と答え合わせをしています…")
         model.main()
+        print("荒れ度の学習と答え合わせをしています…")
+        upset.main()
 
 
 if __name__ == "__main__":

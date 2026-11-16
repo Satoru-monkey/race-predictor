@@ -93,7 +93,7 @@ def boat_race(venue: str, rno: int, day: dt.date):
 
 
 # ------------------------------------------------------------ 競馬
-def keiba_list(day: dt.date):
+def keiba_list(day: dt.date, upset: bool = False):
     from keiba import predict
     races = predict.day_races(day)
     if not races:
@@ -105,7 +105,34 @@ def keiba_list(day: dt.date):
         by.setdefault(r["venue"], []).append(r)
     for v, rs in by.items():
         print(f"**{v}**：" + "、".join(f"{r['rno']}R {r['title']}（{r['start'] or '-'}）" for r in sorted(rs, key=lambda x: x["rno"])))
+    if upset:
+        _keiba_upset_list(races)
     print("\n予想は「京都11R」のように、会場とレース番号を指定して聞いてください。")
+
+
+def _keiba_upset_list(races: list[dict]):
+    """その日の全レースの荒れ度（単勝オッズだけ取得するので、1レース数秒かかる）。"""
+    from keiba import live, upset
+    rows = []
+    for r in races:
+        try:
+            race, df = live.shutuba(r["race_id"])
+            if race.get("surface") == 2:
+                continue
+            u = upset.predict(race, live.odds_win(r["race_id"]), list(df["age"]))
+        except Exception:
+            u = None
+        if u:
+            rows.append((u["prob"], r, u))
+    if not rows:
+        print("\n荒れ度：オッズがまだ出ていないため出せません。")
+        return
+    rows.sort(key=lambda x: x[0])
+    print("\n### 荒れ度（荒れにくい順）\n")
+    print("| 会場 | R | レース | 発走 | 荒れ度 | 3連複1万円以上の確率 |")
+    print("|---|---|---|---|---|---|")
+    for p, r, u in rows:
+        print(f"| {r['venue']} | {r['rno']} | {r['title']} | {r['start'] or '-'} | {u['band']} | {pct(p)} |")
 
 
 def keiba_race(venue: str, rno: int, day: dt.date):
@@ -121,6 +148,14 @@ def keiba_race(venue: str, rno: int, day: dt.date):
     print(f"- 予想のしかた：{'能力モデル＋単勝オッズ' if r['mode'] == 'blend' else '能力モデルだけ（オッズ未発表）'}")
     print(f"- **3連複の確信度：上位3点のどれかが当たる確率 {pct(r['trio_conf'])}**")
     print(f"- 1着の確信度：予想1位の1着確率 {pct(r['confidence'])}")
+    u = r.get("upset")
+    if u:
+        ps = u["past"]
+        print(f"- **荒れ度：{u['band']}**（3連複が1万円以上になる確率 {pct(u['prob'])}）。{u['advice']}")
+        print(f"  - 過去の同じ荒れ度のレース：1万円以上は {pct(ps['big_rate'])}、人気順の3連複上位3点は"
+              f" 的中率 {pct(ps['hit3'])}・回収率 {pct(ps['roi3'])}")
+    else:
+        print("- 荒れ度：オッズがまだ出ていないため出せません")
     for e in r["errors"]:
         print(f"- 注意：{e}")
     print("\n### 予想順位（上位8頭）\n")
@@ -168,12 +203,13 @@ def main():
     ap.add_argument("action", nargs="?", default="list")
     ap.add_argument("args", nargs="*")
     ap.add_argument("--top", type=int, default=10)
+    ap.add_argument("--upset", action="store_true", help="競馬の一覧で、各レースの荒れ度も出す")
     a = ap.parse_args()
     if a.kind == "report":
         return report()
     if a.action == "list":
         day = parse_date(a.args[0] if a.args else None, weekend=a.kind == "keiba")
-        return boat_list(day, a.top) if a.kind == "boat" else keiba_list(day)
+        return boat_list(day, a.top) if a.kind == "boat" else keiba_list(day, upset=a.upset)
     if a.action == "race":
         if len(a.args) < 2:
             raise SystemExit("会場とレース番号を指定してください（例：福岡 12）")
@@ -184,4 +220,9 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import requests
+    try:
+        sys.exit(main())
+    except requests.HTTPError as e:
+        print(f"データ元のサイトから一時的にエラーが返りました（{e}）。1〜2分おいて、もう一度聞いてください。")
+        sys.exit(1)

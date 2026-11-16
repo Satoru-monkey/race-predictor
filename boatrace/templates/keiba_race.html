@@ -7,6 +7,10 @@
 ・{% if r.mode == 'blend' %}能力モデル＋オッズで予想{% else %}能力モデルだけで予想（オッズ未発表）{% endif %}</div>
 <p style="margin:.6em 0 0">3連複の確信度 <span class="tag conf-{{ trio_label(r.trio_conf) }}">{{ trio_label(r.trio_conf) }}</span>
 上位3点のどれかが当たる確率 <strong>{{ '%.0f'|format(r.trio_conf*100) }}%</strong></p>
+{% if r.upset %}<p style="margin:.3em 0 0">荒れ度 <span class="tag conf-{{ '高' if r.upset.band_index <= 1 else ('低' if r.upset.band_index >= 3 else '中') }}">{{ r.upset.band }}</span>
+3連複が1万円以上になる確率 <strong>{{ '%.0f'|format(r.upset.prob*100) }}%</strong></p>
+<p class="sub" style="margin:.2em 0 0">{{ r.upset.advice }}。過去の同じ荒れ度のレースでは、人気順の3連複上位3点の的中率 {{ '%.0f'|format(r.upset.past.hit3*100) }}%・回収率 {{ '%.0f'|format(r.upset.past.roi3*100) }}%</p>
+{% else %}<p class="sub" style="margin:.3em 0 0">荒れ度：オッズがまだ出ていないため出せません</p>{% endif %}
 <p style="margin:.3em 0 0">1着の確信度 <span class="tag conf-{{ r.confidence_label }}">{{ r.confidence_label }}</span>
 予想1位の1着確率 <strong>{{ '%.0f'|format(r.confidence*100) }}%</strong>
 <a href="?date={{ r.date }}&refresh=1" style="margin-left:10px">最新の情報で予想し直す</a></p>

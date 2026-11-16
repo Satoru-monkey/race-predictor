@@ -23,6 +23,7 @@ pip install -q --ignore-installed blinker -r requirements.txt
 | 明日の競艇の一覧 | `python ask.py boat list 明日` |
 | 福岡12Rを予想して（競艇） | `python ask.py boat race 福岡 12` （日付を付けるなら `11-15` など） |
 | 今週末の競馬のレースは？ | `python ask.py keiba list` （省略すると次の土日） |
+| 今日の競馬で荒れにくい／荒れそうなレースは？ | `python ask.py keiba list 今日 --upset` （オッズを1レースずつ取るので数分かかる） |
 | 京都11Rを予想して（競馬） | `python ask.py keiba race 京都 11 11-15` |
 | どれくらい当たるの？ | `python ask.py report` |
 
@@ -39,6 +40,8 @@ pip install -q --ignore-installed blinker -r requirements.txt
 - 表はスマホで読めるよう、列を絞る
 - コマンドの出力にない数字を作らない。取得エラーが出たら、そのまま伝える
 - 展示タイムが出る前（競艇）や、オッズが出る前は、精度が下がることを一言添える
+- 競馬は、1頭ずつの順位ではオッズ（人気順）を超えられていない。予想順位は「人気順に近い」ことを添える
+- 競馬では **荒れ度**（3連複の払い戻しが1万円以上になる確率。5段階）を必ず伝える。持ち主の方針は「荒れにくいレースは人気順の3連複上位3点を検討、荒れやすいレースは見送りも検討」
 - 「必ず当たる」「儲かる」とは言わない。答え合わせの回収率は100%を下回っている（`python ask.py report`）
 
 ## 自動の学び直し

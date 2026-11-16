@@ -147,5 +147,15 @@ def predict_race(race_id: str, day: dt.date) -> dict:
         "confidence_label": "高" if top["win"] >= 0.4 else ("中" if top["win"] >= 0.25 else "低"),
         "wakus": {h["umaban"]: h["waku"] for h in horses},
         "trio": trio_view(tri, of, meta()["backtest"][mode].get("trio")),
+        "upset": _upset(race, ow, list(df["age"])),
         "value_wins": [h for h in horses if h["ev"] and h["ev"] >= 1.1 and h["win"] >= 0.03],
     }
+
+
+def _upset(race: dict, odds: dict, ages: list) -> dict | None:
+    """荒れ度（3連複が1万円以上になる確率）。オッズがまだなければ None。"""
+    from . import upset
+    try:
+        return upset.predict(race, odds, ages)
+    except Exception:
+        return None
